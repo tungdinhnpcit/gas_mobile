@@ -24,12 +24,13 @@ class _KiemKeRow {
   });
 }
 
-/// Màn hình kế toán nhập kiểm kê xuất hàng — route ở root navigator nên tự có
-/// Scaffold + AppBar riêng (theo mobile_screen_navigation.md).
+/// Màn hình kế toán nhập phiếu xuất kho (số bình/vỏ xuất theo mặt hàng, trước
+/// khi lái xe đi bán) — route ở root navigator nên tự có Scaffold + AppBar
+/// riêng (theo mobile_screen_navigation.md).
 ///
-/// `chuyenXeId == null` → chế độ "phiếu độc lập" (Luồng B): tạo phiếu kiểm kê
+/// `chuyenXeId == null` → chế độ "phiếu độc lập" (Luồng B): tạo phiếu xuất kho
 /// trước, chưa gắn chuyến xe nào (POST /api/kiem-ke). `chuyenXeId != null` →
-/// chế độ cũ (Luồng A): kiểm kê gắn sẵn theo đúng chuyến đó (PUT
+/// chế độ cũ (Luồng A): xuất kho gắn sẵn theo đúng chuyến đó (PUT
 /// /api/chuyen-xe/{id}/kiem-ke), vẫn giữ hoạt động dù không còn lối vào từ menu.
 class KiemKeNhapScreen extends StatefulWidget {
   const KiemKeNhapScreen({super.key, this.chuyenXeId, this.ngayLap, this.kiemKeId});
@@ -177,7 +178,7 @@ class _KiemKeNhapScreenState extends State<KiemKeNhapScreen> {
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Lưu kiểm kê thành công'), backgroundColor: Colors.green),
+        const SnackBar(content: Text('Lưu phiếu xuất kho thành công'), backgroundColor: Colors.green),
       );
       context.pop();
     } catch (e) {
@@ -234,8 +235,8 @@ class _KiemKeNhapScreenState extends State<KiemKeNhapScreen> {
         title: Text(widget.chuyenXeId != null
             ? 'Kiểm kê xuất hàng'
             : widget.kiemKeId != null
-                ? 'Sửa phiếu kiểm kê'
-                : 'Tạo phiếu kiểm kê'),
+                ? 'Sửa phiếu xuất kho'
+                : 'Tạo phiếu xuất kho'),
         leading: BackButton(onPressed: () {
           if (context.canPop()) {
             context.pop();
@@ -358,7 +359,7 @@ class _KiemKeNhapScreenState extends State<KiemKeNhapScreen> {
           const SizedBox(height: 16),
         ],
 
-        const Text('Chi tiết xuất hàng',
+        const Text('Chi tiết phiếu xuất kho',
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
         const SizedBox(height: 8),
 
@@ -400,7 +401,7 @@ class _KiemKeNhapScreenState extends State<KiemKeNhapScreen> {
                     height: 18,
                     child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                 : const Icon(Icons.save_outlined),
-            label: const Text('Lưu kiểm kê'),
+            label: const Text('Lưu phiếu xuất kho'),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF00897B),
               foregroundColor: Colors.white,

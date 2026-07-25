@@ -8,8 +8,9 @@ import '../../../../core/router/app_routes.dart';
 import '../../../chuyen_xe/data/models/kiem_ke_model.dart';
 import '../../../chuyen_xe/data/repositories/chuyen_xe_repository.dart';
 
-/// Kế toán nhập số bình còn lại + số vỏ mang về cho từng mặt hàng của phiếu kiểm kê
-/// (nhóm theo hãng), lưu ngay vào phiếu, rồi chọn chuyến để đối chiếu.
+/// Phiếu kiểm kê: kế toán nhập số bình còn lại + số vỏ mang về cho từng mặt
+/// hàng (nhóm theo hãng) sau khi lái xe bán hàng về, lưu ngay vào phiếu, rồi
+/// chọn chuyến để đối chiếu.
 /// Route ở root navigator → tự có Scaffold + AppBar (mobile_screen_navigation.md).
 class KiemKeNhapSoMangVeScreen extends StatefulWidget {
   const KiemKeNhapSoMangVeScreen({super.key, required this.kiemKeId, this.ngay});
@@ -175,7 +176,7 @@ class _KiemKeNhapSoMangVeScreenState extends State<KiemKeNhapSoMangVeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Nhập số mang về'),
+        title: const Text('Phiếu kiểm kê'),
         leading: BackButton(onPressed: () {
           if (context.canPop()) {
             context.pop();

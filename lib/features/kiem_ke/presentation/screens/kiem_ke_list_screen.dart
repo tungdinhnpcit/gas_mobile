@@ -7,9 +7,12 @@ import '../../../../core/router/app_routes.dart';
 import '../../../chuyen_xe/data/models/kiem_ke_model.dart';
 import '../../../chuyen_xe/data/repositories/chuyen_xe_repository.dart';
 
-/// Màn hình kế toán: danh sách phiếu kiểm kê độc lập (Luồng B) lọc theo ngày
-/// lập, mặc định hôm nay. Bấm phiếu chưa gắn chuyến → chọn chuyến để liên kết;
-/// bấm phiếu đã gắn chuyến → vào thẳng màn đối chiếu.
+/// Màn hình kế toán: danh sách phiếu xuất kho độc lập (Luồng B) lọc theo ngày
+/// lập, mặc định hôm nay. Mỗi phiếu có 2 giai đoạn: (1) tạo phiếu xuất kho —
+/// nhập số bình/vỏ xuất theo mặt hàng trước khi lái xe đi bán; (2) phiếu kiểm
+/// kê — nhập số bình còn lại/vỏ mang về khi lái xe bán hàng về. Bấm phiếu
+/// chưa gắn chuyến → nhập kiểm kê rồi chọn chuyến để liên kết; bấm phiếu đã
+/// gắn chuyến → vào thẳng màn đối chiếu.
 class KiemKeListScreen extends StatefulWidget {
   const KiemKeListScreen({super.key});
 
@@ -105,8 +108,8 @@ class _KiemKeListScreenState extends State<KiemKeListScreen> {
       context: context,
       // Dung context cua dialog (ctx) de pop dung dialog, tranh pop nham route shell
       builder: (ctx) => AlertDialog(
-        title: const Text('Xóa phiếu kiểm kê?'),
-        content: Text('Xóa phiếu kiểm kê #${kk.id}? Không thể hoàn tác.'),
+        title: const Text('Xóa phiếu xuất kho?'),
+        content: Text('Xóa phiếu xuất kho #${kk.id}? Không thể hoàn tác.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Hủy')),
           TextButton(
@@ -121,7 +124,7 @@ class _KiemKeListScreenState extends State<KiemKeListScreen> {
       await _repo.deletePhieuKiemKe(kk.id);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Đã xóa phiếu kiểm kê'), backgroundColor: Colors.orange),
+        const SnackBar(content: Text('Đã xóa phiếu xuất kho'), backgroundColor: Colors.orange),
       );
       _load();
     } catch (e) {
@@ -198,7 +201,7 @@ class _KiemKeListScreenState extends State<KiemKeListScreen> {
                   .push(AppRoutes.kiemKeDocLapNhap, extra: _ngay)
                   .then((_) => _load()),
               icon: const Icon(Icons.add),
-              label: const Text('Tạo phiếu kiểm kê'),
+              label: const Text('Tạo phiếu xuất kho'),
               style: FilledButton.styleFrom(backgroundColor: const Color(0xFF00897B)),
             ),
           ),
@@ -215,7 +218,7 @@ class _KiemKeListScreenState extends State<KiemKeListScreen> {
                           children: [
                             Icon(Icons.fact_check_outlined, size: 64, color: Colors.black26),
                             SizedBox(height: 16),
-                            Text('Không có phiếu kiểm kê nào trong ngày này',
+                            Text('Không có phiếu xuất kho nào trong ngày này',
                                 style: TextStyle(color: Colors.black45, fontSize: 15)),
                           ],
                         ),
@@ -333,7 +336,7 @@ class _KiemKePhieuItem extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Phiếu kiểm kê #${item.id}',
+                    Text('Phiếu xuất kho #${item.id}',
                         style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
                     const SizedBox(height: 2),
                     if (item.ngayLap != null)
@@ -369,6 +372,15 @@ class _KiemKePhieuItem extends StatelessWidget {
                   _Badge(
                     label: item.daGanChuyen ? 'Đã gắn chuyến' : 'Chưa gắn chuyến',
                     color: item.daGanChuyen ? Colors.green : Colors.orange,
+                  ),
+                  const SizedBox(height: 6),
+                  _Badge(
+                    label: item.chiTiet.any((c) => c.soBinhConLai != null)
+                        ? 'Đã kiểm kê'
+                        : 'Chưa kiểm kê',
+                    color: item.chiTiet.any((c) => c.soBinhConLai != null)
+                        ? Colors.teal
+                        : Colors.grey,
                   ),
                   if (item.daChot) ...[
                     const SizedBox(height: 6),
