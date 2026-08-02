@@ -60,3 +60,7 @@ pubspec.lock
 # macOS Flutter build artifacts (auto-generated)
 macos/Flutter/ephemeral/
 macos/Flutter/GeneratedPluginRegistrant.swift
+
+# mTLS client certificate — chua private key, KHONG duoc commit
+assets/certs/*.p12
+assets/certs/*.key
