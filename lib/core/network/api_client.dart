@@ -1,8 +1,11 @@
 // lib/core/network/api_client.dart
 import 'dart:convert';
+import 'dart:io';
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../constants/app_constants.dart';
+import 'mtls_client.dart';
 
 const _wafSignatures = [
   'The requested URL was rejected',
@@ -53,6 +56,7 @@ class ApiClient {
       receiveTimeout: const Duration(seconds: 60),
       headers: {'Content-Type': 'application/json'},
     ));
+    _applyMtls(_dio);
 
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
@@ -130,16 +134,27 @@ class ApiClient {
 
   Dio get dio => _dio;
 
+  // Gắn client certificate (mTLS) vào HttpClient của Dio, dùng cache đã preload từ
+  // main() (xem preloadMtlsContext trong mtls_client.dart). Nếu cache chưa sẵn sàng
+  // (preload thất bại hoặc chưa gọi) → fallback HttpClient thường, không chặn app,
+  // vì JWT vẫn là lớp xác thực chính.
+  void _applyMtls(Dio dio) {
+    (dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient =
+        () => HttpClient(context: cachedMtlsSecurityContext);
+  }
+
   Future<bool> _tryRefresh() async {
     final refreshToken = await _storage.read(key: 'refresh_token');
     if (refreshToken == null) return false;
     try {
-      final resp = await Dio(BaseOptions(
+      final refreshDio = Dio(BaseOptions(
         baseUrl: AppConstants.resolvedApiUrl,
         connectTimeout: const Duration(seconds: 10),
         sendTimeout: const Duration(seconds: 10),
         receiveTimeout: const Duration(seconds: 15),
-      )).post('/api/auth/refresh', data: {'refreshToken': refreshToken});
+      ));
+      _applyMtls(refreshDio);
+      final resp = await refreshDio.post('/api/auth/refresh', data: {'refreshToken': refreshToken});
       final data = resp.data as Map<String, dynamic>;
       await _storage.write(key: 'jwt_token',     value: data['accessToken'] as String);
       await _storage.write(key: 'refresh_token', value: data['refreshToken'] as String);

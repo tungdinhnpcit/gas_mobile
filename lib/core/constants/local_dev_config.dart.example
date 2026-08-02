@@ -7,7 +7,7 @@
 // Đổi `target` rồi HOT RESTART app (không phải hot reload) để áp dụng.
 
 /// Đích kết nối API khi debug:
-/// - usb      : BE local qua cáp USB (cần chạy `adb reverse tcp:5000 tcp:5000`)
+/// - usb      : BE local qua cáp USB (cần chạy `adb reverse tcp:8202 tcp:8202`)
 /// - lan      : BE local qua mạng LAN (điện thoại và máy dev cùng WiFi)
 /// - internet : API production qua internet (giống bản release)
 enum DevApiTarget { usb, lan, internet }
@@ -19,10 +19,11 @@ class LocalDevConfig {
   // ----- URL cho từng đích (chỉnh port/IP nếu BE local chạy khác) -----
 
   /// USB: `adb reverse` map localhost điện thoại → localhost máy dev.
-  static const String usbApiUrl = 'http://localhost:5000';
+  /// Đi qua nginx gateway (8202/apimanager) đúng mô hình production, không gọi thẳng backend.
+  static const String usbApiUrl = 'http://localhost:8202/apimanager';
 
   /// LAN: IP máy dev trong mạng nội bộ (đổi cho khớp IP hiện tại của máy dev).
-  static const String lanApiUrl = 'http://192.168.1.9:5001';
+  static const String lanApiUrl = 'http://192.168.1.9:8202/apimanager';
 
   // ----- Các giá trị dẫn xuất (không cần sửa) -----
 

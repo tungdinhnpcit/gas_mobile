@@ -9,6 +9,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'app.dart';
 import 'core/config/device_config.dart';
 import 'core/constants/app_constants.dart';
+import 'core/network/mtls_client.dart';
 import 'core/services/background_polling_service.dart';
 import 'core/services/notification_service.dart';
 import 'firebase_options.dart';
@@ -30,6 +31,10 @@ void main() async {
     prodUrl:  AppConstants.prodApiUrl,
   );
   debugPrint('[CONFIG] API URL = ${AppConstants.resolvedApiUrl}');
+
+  // Nạp client certificate (mTLS) trước khi bất kỳ Dio nào được tạo — xem
+  // core/network/mtls_client.dart + core/network/api_client.dart
+  await preloadMtlsContext();
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await initializeDateFormatting('vi');

@@ -10,7 +10,9 @@ class AppConstants {
   // (file cá nhân, không commit — xem local_dev_config.dart.example)
   // Emulator Android sẽ tự động dùng 10.0.2.2:5001 (xem device_config.dart)
   static final String localApiUrl = LocalDevConfig.devApiUrl;
-  static const String prodApiUrl  = 'http://apimba.npc.com.vn:8202/apimanager';
+  // mTLS bật ở nginx (BE/nginx/quanlygasapp.conf) — bắt buộc https + client certificate
+  // nhúng trong assets/certs/client-mobile.p12 (xem core/network/mtls_client.dart)
+  static const String prodApiUrl  = 'https://apimba.npc.com.vn:8202/apimanager';
   // Được set bởi DeviceConfig.resolveApiUrl() trong main() trước khi runApp
   static String resolvedApiUrl = prodApiUrl;
   static const String lichTuanApiUrl =
