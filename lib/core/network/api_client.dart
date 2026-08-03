@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../constants/app_constants.dart';
+import 'hmac_interceptor.dart';
 import 'mtls_client.dart';
 
 const _wafSignatures = [
@@ -57,6 +58,8 @@ class ApiClient {
       headers: {'Content-Type': 'application/json'},
     ));
     _applyMtls(_dio);
+
+    _dio.interceptors.add(HmacInterceptor());
 
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
@@ -154,6 +157,7 @@ class ApiClient {
         receiveTimeout: const Duration(seconds: 15),
       ));
       _applyMtls(refreshDio);
+      refreshDio.interceptors.add(HmacInterceptor());
       final resp = await refreshDio.post('/api/auth/refresh', data: {'refreshToken': refreshToken});
       final data = resp.data as Map<String, dynamic>;
       await _storage.write(key: 'jwt_token',     value: data['accessToken'] as String);

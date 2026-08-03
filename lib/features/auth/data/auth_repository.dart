@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/network/login_crypto.dart';
 import '../../../core/services/background_polling_service.dart';
 import 'auth_models.dart';
 
@@ -11,11 +12,18 @@ class AuthRepository {
   final _storage = const FlutterSecureStorage();
 
   Future<LoginResponse> login(String username, String password) async {
+    // Nếu build có LOGIN_AES_KEY (gateway /apiv2 mới) → mã hoá password trước khi
+    // gửi. App cũ (không truyền define này) fallback gửi 'password' plaintext như
+    // cũ, backend vẫn hiểu (xem AuthService.LoginAsync, ưu tiên encryptedPassword
+    // nếu có).
+    final encrypted = encryptLoginPassword(password);
     final response = await ApiClient.instance.dio.post(
       '/api/auth/login',
       data: {
         'username':   username,
-        'password':   password,
+        if (encrypted == null) 'password': password,
+        if (encrypted != null) 'encryptedPassword': encrypted.cipherBase64,
+        if (encrypted != null) 'iv': encrypted.ivBase64,
         'deviceInfo': 'mobile',
       },
     );

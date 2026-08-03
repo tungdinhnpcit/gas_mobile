@@ -28,7 +28,7 @@ void main() async {
   // Tự động chọn API URL: emulator → BE local, máy thật → production
   AppConstants.resolvedApiUrl = await DeviceConfig.resolveApiUrl(
     localUrl: AppConstants.localApiUrl,
-    prodUrl:  AppConstants.prodApiUrl,
+    prodUrl:  AppConstants.effectiveProdApiUrl,
   );
   debugPrint('[CONFIG] API URL = ${AppConstants.resolvedApiUrl}');
 
