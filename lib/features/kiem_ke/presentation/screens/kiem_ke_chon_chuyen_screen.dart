@@ -30,6 +30,8 @@ class _KiemKeChonChuyenScreenState extends State<KiemKeChonChuyenScreen> {
   bool _linking = false;
   String? _error;
   List<ChuyenXeModel> _items = [];
+  // Xe da chon luc lap phieu kiem ke - dung de uu tien hien chuyen cung xe len dau danh sach
+  int? _kiemKeXeId;
 
   late DateTime _ngay = widget.ngayMacDinh ?? DateTime.now();
 
@@ -46,6 +48,7 @@ class _KiemKeChonChuyenScreenState extends State<KiemKeChonChuyenScreen> {
     });
     try {
       // Lấy song song: chuyến hoàn thành + danh sách kiểm kê đã gắn chuyến (để loại chuyến đã gắn)
+      // + phiếu kiểm kê hiện tại (để biết xe đã chọn lúc lập phiếu, ưu tiên hiển thị chuyến cùng xe)
       final results = await Future.wait([
         _repo.getListByTrangThai(
           trangThai: 'hoan-thanh',
@@ -53,16 +56,28 @@ class _KiemKeChonChuyenScreenState extends State<KiemKeChonChuyenScreen> {
           denNgay: _ngay,
         ),
         _repo.getPhieuKiemKeList(daGanChuyen: true),
+        _repo.getPhieuKiemKeById(widget.kiemKeId),
       ]);
       final chuyenList = results[0] as List<ChuyenXeModel>;
       final daGan = results[1] as List<KiemKeChuyenXeModel>;
+      final kiemKe = results[2] as KiemKeChuyenXeModel;
       final ganIds = daGan.map((k) => k.chuyenXeId).whereType<int>().toSet();
 
+      final kiemKeXeId = kiemKe.xeId;
       final items = chuyenList.where((cx) => !ganIds.contains(cx.id)).toList()
-        ..sort((a, b) => b.ngayXuat.compareTo(a.ngayXuat));
+        ..sort((a, b) {
+          // Uu tien chuyen cung xe voi phieu kiem ke len dau, giu sap xep ngay giam dan trong tung nhom
+          if (kiemKeXeId != null) {
+            final aMatch = a.xeId == kiemKeXeId;
+            final bMatch = b.xeId == kiemKeXeId;
+            if (aMatch != bMatch) return aMatch ? -1 : 1;
+          }
+          return b.ngayXuat.compareTo(a.ngayXuat);
+        });
       if (!mounted) return;
       setState(() {
         _items = items;
+        _kiemKeXeId = kiemKeXeId;
         _loading = false;
       });
     } catch (e) {
@@ -235,9 +250,15 @@ class _KiemKeChonChuyenScreenState extends State<KiemKeChonChuyenScreen> {
         separatorBuilder: (_, __) => const SizedBox(height: 10),
         itemBuilder: (context, i) {
           final cx = _items[i];
+          final cungXe = _kiemKeXeId != null && cx.xeId == _kiemKeXeId;
           return Card(
             elevation: 2,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+              side: cungXe
+                  ? const BorderSide(color: Color(0xFF00897B), width: 1.5)
+                  : BorderSide.none,
+            ),
             clipBehavior: Clip.antiAlias,
             child: InkWell(
               onTap: _linking ? null : () => _chonChuyen(cx),
@@ -259,8 +280,27 @@ class _KiemKeChonChuyenScreenState extends State<KiemKeChonChuyenScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(cx.maChuyenXe,
-                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                          Row(
+                            children: [
+                              Text(cx.maChuyenXe,
+                                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                              if (cungXe) ...[
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF00897B).withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: const Text('Cùng xe',
+                                      style: TextStyle(
+                                          color: Color(0xFF00897B),
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700)),
+                                ),
+                              ],
+                            ],
+                          ),
                           const SizedBox(height: 2),
                           Text(fmt.format(cx.ngayXuat.toLocal()),
                               style: TextStyle(

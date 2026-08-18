@@ -1,7 +1,7 @@
 ﻿name: quan_ly_gas_app
 description: Ứng dụng quản lý gas cho lái xe
 publish_to: 'none'
-version: 1.0.0+4
+version: 1.0.2+6
 environment:
   sdk: ^3.9.2
 

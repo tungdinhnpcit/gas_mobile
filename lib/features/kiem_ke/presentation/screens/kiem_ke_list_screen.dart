@@ -354,6 +354,17 @@ class _KiemKePhieuItem extends StatelessWidget {
                         ],
                       ),
                     ],
+                    // Xe chuẩn bị hàng - hiển thị kể cả khi chưa gắn chuyến để biết phiếu này dành cho xe nào
+                    if (item.bienSoXe != null) ...[
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          const Icon(Icons.directions_car_outlined, size: 14, color: Colors.grey),
+                          const SizedBox(width: 4),
+                          Text(item.bienSoXe!, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                        ],
+                      ),
+                    ],
                     if (item.ghiChu != null && item.ghiChu!.isNotEmpty) ...[
                       const SizedBox(height: 2),
                       Text(item.ghiChu!,

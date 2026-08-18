@@ -66,6 +66,9 @@ class KiemKeChuyenXeModel {
   final int id;
   final int? chuyenXeId;
   final String? maChuyenXe;
+  // Xe chuẩn bị hàng lúc lập phiếu xuất kho — tham khảo, hiển thị khi phiếu chưa gắn chuyến.
+  final int? xeId;
+  final String? bienSoXe;
   final DateTime? ngayLap;
   final String? nguoiLap;
   final String? ghiChu;
@@ -79,6 +82,8 @@ class KiemKeChuyenXeModel {
     required this.id,
     this.chuyenXeId,
     this.maChuyenXe,
+    this.xeId,
+    this.bienSoXe,
     this.ngayLap,
     this.nguoiLap,
     this.ghiChu,
@@ -93,6 +98,8 @@ class KiemKeChuyenXeModel {
         id:         json['id'] as int? ?? 0,
         chuyenXeId: json['chuyenXeId'] as int?,
         maChuyenXe: json['maChuyenXe'] as String?,
+        xeId:       json['xeId'] as int?,
+        bienSoXe:   json['bienSoXe'] as String?,
         ngayLap:    json['ngayLap'] != null
             ? DateTime.tryParse(json['ngayLap'] as String)
             : null,

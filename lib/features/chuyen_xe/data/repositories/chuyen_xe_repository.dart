@@ -9,7 +9,6 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/network/api_client.dart';
-import '../../../../core/utils/date_query_ext.dart';
 import '../models/chuyen_xe_model.dart';
 import '../models/kiem_ke_model.dart';
 import '../models/kiem_ke_doi_chieu_model.dart';
@@ -466,6 +465,7 @@ class ChuyenXeRepository {
     String? ghiChu,
     required List<Map<String, dynamic>> chiTiet,
     DateTime? ngayLap, // ngày lập = ngày đang lọc ở danh sách; null → backend dùng giờ VN
+    int? xeId, // xe chuẩn bị hàng — tùy chọn, chỉ mang tính tham khảo
   }) async {
     final res = await ApiClient.instance.dio.post(
       '/api/kiem-ke',
@@ -473,6 +473,7 @@ class ChuyenXeRepository {
         'ghiChu': ghiChu,
         'chiTiet': chiTiet,
         if (ngayLap != null) 'ngayLap': ngayLap.toIso8601String(),
+        'xeId': xeId,
       },
     );
     return KiemKeChuyenXeModel.fromJson(res.data as Map<String, dynamic>);
@@ -485,6 +486,7 @@ class ChuyenXeRepository {
     String? ghiChu,
     required List<Map<String, dynamic>> chiTiet,
     DateTime? ngayLap,
+    int? xeId,
   }) async {
     final res = await ApiClient.instance.dio.put(
       '/api/kiem-ke/$kiemKeId',
@@ -492,6 +494,7 @@ class ChuyenXeRepository {
         'ghiChu': ghiChu,
         'chiTiet': chiTiet,
         if (ngayLap != null) 'ngayLap': ngayLap.toIso8601String(),
+        'xeId': xeId,
       },
     );
     return KiemKeChuyenXeModel.fromJson(res.data as Map<String, dynamic>);

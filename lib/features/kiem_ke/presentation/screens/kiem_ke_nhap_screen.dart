@@ -55,6 +55,9 @@ class _KiemKeNhapScreenState extends State<KiemKeNhapScreen> {
 
   ChuyenXeModel? _chuyenXe;
   List<Map<String, dynamic>> _matHangList = [];
+  List<Map<String, dynamic>> _xeList = [];
+  // Xe chuẩn bị hàng — chỉ áp dụng cho phiếu độc lập (Luồng B), tham khảo khi xem lại/liên kết chuyến
+  int? _selectedXeId;
   final List<_KiemKeRow> _rows = [];
   final _ghiChuCtrl = TextEditingController();
   // Ngay lap phieu o che do SUA (cho phep chinh lai); null neu khong phai che do sua
@@ -80,6 +83,7 @@ class _KiemKeNhapScreenState extends State<KiemKeNhapScreen> {
     try {
       final chuyenXeId = widget.chuyenXeId;
       final mhList = await _db.getMatHangList();
+      final xeList = await _db.getXeList();
       ChuyenXeModel? cx;
       KiemKeChuyenXeModel? kiemKe;
       if (chuyenXeId != null) {
@@ -99,10 +103,15 @@ class _KiemKeNhapScreenState extends State<KiemKeNhapScreen> {
       setState(() {
         _chuyenXe    = cx;
         _matHangList = mhList;
+        _xeList      = xeList;
         _rows.clear();
         // Che do SUA: nap ngay lap hien tai de cho phep chinh lai
         if (widget.kiemKeId != null) {
           _ngayLap = kiemKe?.ngayLap?.toLocal();
+        }
+        // Prefill xe da chon (che do SUA phieu doc lap, hoac khoi tao lai sau khi reload)
+        if (chuyenXeId == null) {
+          _selectedXeId = kiemKe?.xeId;
         }
         if (kiemKe != null && kiemKe.chiTiet.isNotEmpty) {
           _ghiChuCtrl.text = kiemKe.ghiChu ?? '';
@@ -172,9 +181,11 @@ class _KiemKeNhapScreenState extends State<KiemKeNhapScreen> {
         await _repo.upsertKiemKe(chuyenXeId, ghiChu: ghiChu, chiTiet: chiTiet);
       } else if (widget.kiemKeId != null) {
         // Che do SUA: replace ghiChu + chiTiet, cap nhat lai ngay lap neu co chinh
-        await _repo.updatePhieuKiemKe(widget.kiemKeId!, ghiChu: ghiChu, chiTiet: chiTiet, ngayLap: _ngayLap);
+        await _repo.updatePhieuKiemKe(widget.kiemKeId!,
+            ghiChu: ghiChu, chiTiet: chiTiet, ngayLap: _ngayLap, xeId: _selectedXeId);
       } else {
-        await _repo.createPhieuKiemKe(ghiChu: ghiChu, chiTiet: chiTiet, ngayLap: widget.ngayLap);
+        await _repo.createPhieuKiemKe(
+            ghiChu: ghiChu, chiTiet: chiTiet, ngayLap: widget.ngayLap, xeId: _selectedXeId);
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -330,6 +341,30 @@ class _KiemKeNhapScreenState extends State<KiemKeNhapScreen> {
                 ],
               ),
             ),
+          ),
+          const SizedBox(height: 16),
+        ],
+
+        // Phieu doc lap (Luong B): cho chon xe chuan bi hang - tuy chon, chi de tham khao
+        if (cx == null) ...[
+          const Text('Xe (tuỳ chọn)',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<int>(
+            isExpanded: true,
+            initialValue: _selectedXeId,
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              isDense: true,
+              hintText: 'Chọn xe chuẩn bị hàng',
+            ),
+            items: _xeList
+                .map((xe) => DropdownMenuItem<int>(
+                      value: xe['server_id'] as int,
+                      child: Text(xe['bien_so_xe'] as String),
+                    ))
+                .toList(),
+            onChanged: (val) => setState(() => _selectedXeId = val),
           ),
           const SizedBox(height: 16),
         ],
