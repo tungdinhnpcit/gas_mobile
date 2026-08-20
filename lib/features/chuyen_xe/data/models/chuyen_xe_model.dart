@@ -236,6 +236,7 @@ class ChuyenXeChiTietModel {
   final String? tenKhachHang;
   final int matHangId;
   final String? tenMatHang;
+  final String? maNhaCungCap;
   final String? tenNhaCungCap;
   final int soLuong;
   final double donGia;
@@ -249,6 +250,7 @@ class ChuyenXeChiTietModel {
     this.tenKhachHang,
     required this.matHangId,
     this.tenMatHang,
+    this.maNhaCungCap,
     this.tenNhaCungCap,
     required this.soLuong,
     required this.donGia,
@@ -263,6 +265,7 @@ class ChuyenXeChiTietModel {
         tenKhachHang:   json['tenKhachHang'] as String?,
         matHangId:      json['matHangId'] as int,
         tenMatHang:     json['tenMatHang'] as String?,
+        maNhaCungCap:   json['maNhaCungCap'] as String?,
         tenNhaCungCap:  json['tenNhaCungCap'] as String?,
         soLuong:        json['soLuong'] as int,
         donGia:         (json['donGia'] as num? ?? 0).toDouble(),
@@ -270,6 +273,10 @@ class ChuyenXeChiTietModel {
         soVoBan:        json['soVoBan'] as int? ?? 0,
         soVoThu:        json['soVoThu'] as int? ?? 0,
       );
+
+  /// Nhãn "MA - Tên".
+  String get nhaCungCapLabel =>
+      [maNhaCungCap, tenNhaCungCap].where((s) => s != null && s.isNotEmpty).join(' - ');
 }
 
 // ---------- Kết thúc chuyến: Thu vỏ bình ----------

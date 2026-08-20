@@ -43,9 +43,7 @@ class NhaCungCapDetailScreen extends ConsumerWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(ncc.maNCC,
-                                  style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                              Text(ncc.tenNCC,
+                              Text('${ncc.maNCC} - ${ncc.tenNCC}',
                                   style: const TextStyle(
                                       fontSize: 16, fontWeight: FontWeight.w700)),
                               const SizedBox(height: 6),

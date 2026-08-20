@@ -303,7 +303,7 @@ class _XacNhanKhachHangScreenState extends ConsumerState<XacNhanKhachHangScreen>
                     const SizedBox(height: 4),
                     for (final n in noVoList)
                       _infoRow(
-                        '${n.tenNhaCungCap ?? '(Không rõ hãng)'} • ${n.tenMatHang ?? ''}:',
+                        '${n.tenNhaCungCap != null ? [n.maNhaCungCap, n.tenNhaCungCap].where((s) => s != null && s.isNotEmpty).join(' - ') : '(Không rõ hãng)'} • ${n.tenMatHang ?? ''}:',
                         '${n.soLuong} vỏ',
                         valueColor: Colors.orange.shade700,
                       ),

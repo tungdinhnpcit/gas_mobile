@@ -868,7 +868,7 @@ class _MatHangPlanCard extends StatelessWidget {
                   if (item.tenNhaCungCap != null) ...[
                     const SizedBox(height: 2),
                     Text(
-                      item.tenNhaCungCap!,
+                      item.nhaCungCapLabel,
                       style: TextStyle(
                           fontSize: 12,
                           color: Theme.of(context)
@@ -1759,7 +1759,7 @@ class _TabKiemKe extends ConsumerWidget {
         final groups = <String, List<KiemKeChiTietModel>>{};
         for (final ct in kk.chiTiet) {
           final key = ct.tenNhaCungCap?.isNotEmpty == true
-              ? ct.tenNhaCungCap!
+              ? ct.nhaCungCapLabel
               : 'Khác';
           groups.putIfAbsent(key, () => []).add(ct);
         }

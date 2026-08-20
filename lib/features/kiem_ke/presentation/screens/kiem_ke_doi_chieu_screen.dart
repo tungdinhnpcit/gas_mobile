@@ -308,7 +308,7 @@ class _KiemKeDoiChieuScreenState extends State<KiemKeDoiChieuScreen> {
                 style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
             if (r.tenNhaCungCap != null) ...[
               const SizedBox(height: 2),
-              Text(r.tenNhaCungCap!, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              Text(r.nhaCungCapLabel, style: const TextStyle(fontSize: 12, color: Colors.grey)),
             ],
             const Divider(height: 18),
             _compareRow('Số bình mang về', r.soBinhKeToan, r.soBinhLaiXe, r.chenhLechBinh),
@@ -335,7 +335,7 @@ class _KiemKeDoiChieuScreenState extends State<KiemKeDoiChieuScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(v.tenNhaCungCap ?? 'Không xác định',
+            Text(v.tenNhaCungCap != null ? v.nhaCungCapLabel : 'Không xác định',
                 style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
             const Divider(height: 18),
             _compareRow('Số vỏ mang về', v.soVoKeToan, v.soVoLaiXe, v.chenhLech),

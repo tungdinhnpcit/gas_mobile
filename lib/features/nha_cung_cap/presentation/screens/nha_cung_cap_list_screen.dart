@@ -108,9 +108,7 @@ class _NhaCungCapListScreenState extends ConsumerState<NhaCungCapListScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(ncc.maNCC,
-                                        style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                                    Text(ncc.tenNCC,
+                                    Text('${ncc.maNCC} - ${ncc.tenNCC}',
                                         style: const TextStyle(
                                             fontWeight: FontWeight.w600, fontSize: 14)),
                                     if (ncc.nguoiLienHe != null) ...[

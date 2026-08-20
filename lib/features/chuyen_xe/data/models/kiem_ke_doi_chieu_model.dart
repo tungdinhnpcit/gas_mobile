@@ -5,6 +5,7 @@
 /// Một dòng đối chiếu theo mặt hàng + nhà cung cấp.
 class KiemKeDoiChieuRow {
   final int? nhaCungCapId;
+  final String? maNhaCungCap;
   final String? tenNhaCungCap;
   final int matHangId;
   final String? tenMatHang;
@@ -19,6 +20,7 @@ class KiemKeDoiChieuRow {
 
   const KiemKeDoiChieuRow({
     this.nhaCungCapId,
+    this.maNhaCungCap,
     this.tenNhaCungCap,
     required this.matHangId,
     this.tenMatHang,
@@ -34,6 +36,7 @@ class KiemKeDoiChieuRow {
 
   factory KiemKeDoiChieuRow.fromJson(Map<String, dynamic> j) => KiemKeDoiChieuRow(
         nhaCungCapId:  j['nhaCungCapId'] as int?,
+        maNhaCungCap:  j['maNhaCungCap'] as String?,
         tenNhaCungCap: j['tenNhaCungCap'] as String?,
         matHangId:     j['matHangId'] as int? ?? 0,
         tenMatHang:    j['tenMatHang'] as String?,
@@ -46,11 +49,16 @@ class KiemKeDoiChieuRow {
         chenhLechVo:   j['chenhLechVo'] as int? ?? 0,
         coChenhLech:   j['coChenhLech'] as bool? ?? false,
       );
+
+  /// Nhãn "MA - Tên".
+  String get nhaCungCapLabel =>
+      [maNhaCungCap, tenNhaCungCap].where((s) => s != null && s.isNotEmpty).join(' - ');
 }
 
 /// Tổng hợp số vỏ mang về theo từng nhà cung cấp (hãng).
 class KiemKeDoiChieuVoNCC {
   final int? nhaCungCapId;
+  final String? maNhaCungCap;
   final String? tenNhaCungCap;
   final int soVoKeToan;
   final int soVoLaiXe;
@@ -58,6 +66,7 @@ class KiemKeDoiChieuVoNCC {
 
   const KiemKeDoiChieuVoNCC({
     this.nhaCungCapId,
+    this.maNhaCungCap,
     this.tenNhaCungCap,
     required this.soVoKeToan,
     required this.soVoLaiXe,
@@ -66,11 +75,16 @@ class KiemKeDoiChieuVoNCC {
 
   factory KiemKeDoiChieuVoNCC.fromJson(Map<String, dynamic> j) => KiemKeDoiChieuVoNCC(
         nhaCungCapId:  j['nhaCungCapId'] as int?,
+        maNhaCungCap:  j['maNhaCungCap'] as String?,
         tenNhaCungCap: j['tenNhaCungCap'] as String?,
         soVoKeToan:    j['soVoKeToan'] as int? ?? 0,
         soVoLaiXe:     j['soVoLaiXe'] as int? ?? 0,
         chenhLech:     j['chenhLech'] as int? ?? 0,
       );
+
+  /// Nhãn "MA - Tên".
+  String get nhaCungCapLabel =>
+      [maNhaCungCap, tenNhaCungCap].where((s) => s != null && s.isNotEmpty).join(' - ');
 }
 
 class KiemKeDoiChieuModel {
