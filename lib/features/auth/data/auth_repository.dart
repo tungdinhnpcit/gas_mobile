@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../../../core/constants/storage_keys.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/login_crypto.dart';
 import '../../../core/services/background_polling_service.dart';
@@ -42,6 +43,43 @@ class AuthRepository {
     final result = LoginResponse.fromJson(response.data);
     await _saveSession(result);
     return result;
+  }
+
+  /// Đăng ký đăng nhập vân tay cho thiết bị này. Gọi khi người dùng ĐANG đăng nhập
+  /// (cần JWT còn hiệu lực). Trả về biometric token — server chỉ trả đúng một lần.
+  Future<String> registerBiometric(String deviceId, String? deviceInfo) async {
+    final response = await ApiClient.instance.dio.post(
+      '/api/auth/biometric/register',
+      data: {'deviceId': deviceId, 'deviceInfo': deviceInfo},
+    );
+    return response.data['biometricToken'] as String;
+  }
+
+  /// Đăng nhập bằng biometric token. Server trả về phiên đầy đủ giống login mật khẩu.
+  Future<LoginResponse> loginWithBiometric(
+    String biometricToken,
+    String deviceId,
+    String? deviceInfo,
+  ) async {
+    final response = await ApiClient.instance.dio.post(
+      '/api/auth/biometric/login',
+      data: {
+        'biometricToken': biometricToken,
+        'deviceId': deviceId,
+        'deviceInfo': deviceInfo,
+      },
+    );
+    final result = LoginResponse.fromJson(response.data);
+    await _saveSession(result);
+    return result;
+  }
+
+  /// Thu hồi biometric token của thiết bị này (người dùng tắt vân tay).
+  Future<void> revokeBiometric(String deviceId) async {
+    await ApiClient.instance.dio.post(
+      '/api/auth/biometric/revoke',
+      data: {'deviceId': deviceId},
+    );
   }
 
   Future<void> logout() async {
@@ -96,8 +134,13 @@ class AuthRepository {
     await _storage.write(key: 'avatar_url',    value: r.avatarUrl ?? '');
   }
 
+  /// Chỉ xoá dữ liệu của PHIÊN đăng nhập. Cố ý KHÔNG dùng `deleteAll()` vì nó xoá
+  /// luôn cấu hình vân tay (biometric_token, device_id...) khiến người dùng đăng
+  /// xuất xong không đăng nhập bằng vân tay lại được.
   Future<void> _clearSession() async {
-    await _storage.deleteAll();
+    for (final key in StorageKeys.sessionKeys) {
+      await _storage.delete(key: key);
+    }
   }
 
   /// Gọi API đổi mật khẩu. Trả true nếu thành công, false nếu mật khẩu hiện tại sai.

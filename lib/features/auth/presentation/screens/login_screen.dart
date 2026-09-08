@@ -72,11 +72,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final available = await _biometric.isAvailable();
     if (!available) return;
 
-    final enabled = await _biometric.isBiometricEnabled();
-    final hasToken = await _repo.isLoggedIn();
+    // Sẵn sàng khi đã bật vân tay VÀ còn biometric token. Cố ý không xét jwt_token:
+    // token phiên bị xoá lúc đăng xuất, trong khi vân tay phải dùng được sau đăng xuất.
+    final ready = await _biometric.isReady();
+    if (!mounted) return;
     setState(() {
       _biometricAvailable = true;
-      _biometricReady = enabled && hasToken;
+      _biometricReady = ready;
     });
   }
 
@@ -101,8 +103,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (!mounted) return;
 
       final available = await _biometric.isAvailable();
-      final enabled = await _biometric.isBiometricEnabled();
-      if (available && !enabled) {
+      final enabled = await _biometric.isReady();
+      final savedUsername = await _biometric.getSavedUsername();
+
+      // Chỉ xử lý khi biết chắc tài khoản cũ là ai; savedUsername rỗng thì coi như
+      // cùng tài khoản để không thu hồi nhầm vân tay đang dùng tốt.
+      final khacTaiKhoan =
+          savedUsername != null &&
+          savedUsername.isNotEmpty &&
+          savedUsername != response.username;
+
+      if (available && enabled && khacTaiKhoan) {
+        // Tài khoản khác vừa đăng nhập trên cùng máy: token vân tay đang trỏ về
+        // tài khoản cũ. Thu hồi rồi hỏi lại, tránh quét vân tay ra nhầm tài khoản.
+        await _disableBiometricForOtherUser();
+        await _showEnableBiometricSheet(response.username);
+      } else if (available && !enabled) {
         await _showEnableBiometricSheet(response.username);
       } else {
         await _biometric.saveUsername(response.username);
@@ -137,55 +153,82 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _loginWithBiometric() async {
-    if (!_biometricReady) {
-      setState(
-        () => _error =
-            'Vui lòng đăng nhập bằng mật khẩu trước để kích hoạt vân tay',
-      );
-      return;
-    }
-
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final ok = await _biometric.authenticate();
-      if (!ok) {
+      final auth = await _biometric.authenticate();
+      if (!auth.success) {
+        // Người dùng tự đóng hộp thoại thì im lặng, không hiện báo đỏ.
         setState(() {
-          _error = 'Xác thực vân tay thất bại';
+          _error = auth.cancelled ? null : auth.errorMessage;
           _loading = false;
         });
         return;
       }
 
-      final storage = await _repo.getStoredRefreshToken();
-      if (storage == null) {
-        await _biometric.disableBiometric();
+      final token = await _biometric.getBiometricToken();
+      if (token == null || token.isEmpty) {
+        await _biometric.clearBiometric();
         setState(() {
           _biometricReady = false;
-          _error = 'Phiên đăng nhập hết hạn, vui lòng nhập mật khẩu';
+          _error = 'Chưa thiết lập vân tay, vui lòng đăng nhập bằng mật khẩu';
           _loading = false;
         });
         return;
       }
 
-      await _repo.refresh(storage);
+      final deviceId = await _biometric.getOrCreateDeviceId();
+      await _repo.loginWithBiometric(token, deviceId, 'mobile');
+
       if (mounted) {
         ref.invalidate(menuProvider);
         ref.invalidate(userInfoProvider);
         ref.invalidate(soChuaDocProvider);
         context.go(AppRoutes.home);
       }
-    } catch (_) {
-      await _biometric.disableBiometric();
-      setState(() {
-        _biometricReady = false;
-        _error = 'Phiên đăng nhập hết hạn, vui lòng nhập mật khẩu';
-      });
+    } on DioException catch (e) {
+      // Chỉ 401 mới là token thực sự mất hiệu lực (bị thu hồi do đổi mật khẩu, hết
+      // hạn, hoặc tắt từ thiết bị khác) → mới xoá cấu hình vân tay.
+      // Lỗi mạng thì GIỮ NGUYÊN, nếu không người dùng mất sóng một lần là phải
+      // thiết lập lại vân tay từ đầu.
+      if (e.response?.statusCode == 401) {
+        await _biometric.clearBiometric();
+        if (mounted) {
+          setState(() {
+            _biometricReady = false;
+            _error =
+                'Đăng nhập vân tay đã hết hiệu lực, vui lòng nhập mật khẩu';
+          });
+        }
+      } else {
+        final msg =
+            (e.type == DioExceptionType.connectionTimeout ||
+                e.type == DioExceptionType.receiveTimeout ||
+                e.type == DioExceptionType.connectionError)
+            ? 'Không kết nối được đến máy chủ (${e.requestOptions.baseUrl})'
+            : 'Lỗi: ${e.message ?? e.type.name}';
+        if (mounted) setState(() => _error = msg);
+      }
+    } catch (e) {
+      if (mounted) setState(() => _error = 'Lỗi: $e');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  /// Thu hồi vân tay của tài khoản trước đó trên máy này. Chạy khi một tài khoản
+  /// khác đăng nhập; JWT hiện tại là của tài khoản mới nên server chỉ thu hồi được
+  /// token thuộc tài khoản mới — vì vậy vẫn xoá bản cục bộ để token cũ không dùng lại.
+  Future<void> _disableBiometricForOtherUser() async {
+    try {
+      final deviceId = await _biometric.getOrCreateDeviceId();
+      await _repo.revokeBiometric(deviceId);
+    } catch (_) {
+      // Mất mạng cũng phải xoá cục bộ — ưu tiên không để đăng nhập nhầm tài khoản.
+    }
+    await _biometric.clearBiometric();
   }
 
   Future<void> _showEnableBiometricSheet(String username) async {
@@ -244,9 +287,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ),
       ),
     );
-    if (enable == true) {
+    if (enable != true) return;
+
+    // Đăng ký ngay lúc này vì JWT vừa nhận còn hiệu lực. Token nhận được sẽ dùng
+    // cho các lần đăng nhập vân tay sau, kể cả sau khi đăng xuất.
+    try {
+      final deviceId = await _biometric.getOrCreateDeviceId();
+      final token = await _repo.registerBiometric(deviceId, 'mobile');
+      await _biometric.saveBiometricToken(token);
       await _biometric.enableBiometric();
       await _biometric.saveUsername(username);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Không bật được đăng nhập vân tay. Bạn có thể bật lại trong Cài đặt.',
+            ),
+          ),
+        );
+      }
     }
   }
 
@@ -324,36 +384,45 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 // ── Logo ─────────────────────────────────────────────────
                 Column(
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text('🔥', style: TextStyle(fontSize: 32)),
-                        const SizedBox(width: 12),
-                        RichText(
-                          text: const TextSpan(
-                            children: [
-                              TextSpan(
-                                text: 'GAS ',
-                                style: TextStyle(
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                  letterSpacing: 1,
+                    // FittedBox + mainAxisSize.min: logo tự thu nhỏ khi màn hình hẹp
+                    // thay vì tràn. BoxFit.scaleDown chỉ thu nhỏ, không phóng to nên
+                    // máy rộng vẫn giữ đúng cỡ chữ thiết kế.
+                    // Lưu ý: FittedBox đo con với bề rộng vô hạn nên Row BẮT BUỘC phải
+                    // là MainAxisSize.min, để max sẽ ném assertion.
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text('🔥', style: TextStyle(fontSize: 32)),
+                          const SizedBox(width: 12),
+                          RichText(
+                            text: const TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: 'GAS ',
+                                  style: TextStyle(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                    letterSpacing: 1,
+                                  ),
                                 ),
-                              ),
-                              TextSpan(
-                                text: 'MANAGER',
-                                style: TextStyle(
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.w300,
-                                  color: _cyanBright,
-                                  letterSpacing: 1,
+                                TextSpan(
+                                  text: 'MANAGER',
+                                  style: TextStyle(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.w300,
+                                    color: _cyanBright,
+                                    letterSpacing: 1,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 12),
                     const Text(
@@ -410,7 +479,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
 
                 // ── Đăng nhập vân tay ────────────────────────────────────
-                if (_biometricAvailable) ...[
+                // Chỉ hiện khi đã thiết lập xong: máy hỗ trợ vân tay VÀ đã bật kèm
+                // token. Nhờ vậy không còn cảnh bấm vào rồi nhận thông báo phải
+                // đăng nhập mật khẩu trước.
+                if (_biometricAvailable && _biometricReady) ...[
                   const SizedBox(height: 16),
                   Align(
                     alignment: Alignment.centerRight,
@@ -421,12 +493,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         children: [
                           Icon(Icons.fingerprint, size: 20, color: _cyan),
                           SizedBox(width: 6),
-                          Text(
-                            'Đăng nhập bằng vân tay',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: _cyan,
-                              fontWeight: FontWeight.w500,
+                          // Flexible: tránh tràn khi người dùng bật cỡ chữ hệ thống lớn.
+                          Flexible(
+                            child: Text(
+                              'Đăng nhập bằng vân tay',
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: _cyan,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                           ),
                         ],
@@ -470,12 +546,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   ),
                                 ),
                                 SizedBox(width: 10),
-                                Text(
-                                  'ĐANG XÁC THỰC...',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.bold,
+                                Flexible(
+                                  child: Text(
+                                    'ĐANG XÁC THỰC...',
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
                                 ),
                               ],

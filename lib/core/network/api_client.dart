@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../constants/app_constants.dart';
+import '../constants/storage_keys.dart';
 import 'hmac_interceptor.dart';
 import 'mtls_client.dart';
 
@@ -124,8 +125,12 @@ class ApiClient {
               return;
             } catch (_) {}
           }
-          // Refresh thất bại → xóa session + về login
-          await _storage.deleteAll();
+          // Refresh thất bại → xoá session + về login.
+          // Chỉ xoá key của phiên, giữ lại cấu hình vân tay để người dùng đăng nhập
+          // lại bằng vân tay được (xem StorageKeys).
+          for (final key in StorageKeys.sessionKeys) {
+            await _storage.delete(key: key);
+          }
           _navigateToLogin?.call('/login');
         }
         handler.next(error);

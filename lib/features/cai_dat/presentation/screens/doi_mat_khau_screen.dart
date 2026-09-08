@@ -1,6 +1,7 @@
 // lib/features/cai_dat/presentation/screens/doi_mat_khau_screen.dart
 import 'package:flutter/material.dart';
 import '../../../../features/auth/data/auth_repository.dart';
+import '../../../../features/auth/data/biometric_service.dart';
 
 /// Màn hình Đổi mật khẩu — form nhập mật khẩu hiện tại và mật khẩu mới.
 class DoiMatKhauScreen extends StatefulWidget {
@@ -36,6 +37,11 @@ class _DoiMatKhauScreenState extends State<DoiMatKhauScreen> {
         _currentCtrl.text.trim(),
         _newCtrl.text.trim(),
       );
+      if (ok) {
+        // Server thu hồi mọi biometric token khi đổi mật khẩu → xoá luôn bản cục bộ
+        // để trạng thái vân tay trong Cài đặt không hiển thị sai là "đang bật".
+        await BiometricService().clearBiometric();
+      }
       if (!mounted) return;
       if (ok) {
         _currentCtrl.clear();
