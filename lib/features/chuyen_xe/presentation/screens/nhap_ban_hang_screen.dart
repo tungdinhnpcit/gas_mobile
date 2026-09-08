@@ -153,7 +153,12 @@ class _NhapBanHangScreenState extends ConsumerState<NhapBanHangScreen> {
   final _tienCKCtrl = TextEditingController(text: '');
   final _dieuChinhTienCtrl = TextEditingController(text: '');
   final _tienChenhLechVoCtrl = TextEditingController(text: '');
+  final _tienTruTraTruocCtrl = TextEditingController(text: '');
   int? _selectedTaiKhoanId;
+
+  // Số dư tiền khách đã chuyển trước — chỉ tra được khi online, dùng để hiển thị "Còn lại"
+  double? _soDuTraTruoc;
+  bool _loadingSoDuTraTruoc = false;
 
   // Ghi chú
   final _ghiChuCtrl = TextEditingController();
@@ -211,7 +216,13 @@ class _NhapBanHangScreenState extends ConsumerState<NhapBanHangScreen> {
       ) ??
       0;
 
-  double get _conLai => _tongTien - _tienMat - _tienCK;
+  double get _tienTruTraTruoc =>
+      double.tryParse(
+        _tienTruTraTruocCtrl.text.replaceAll('.', '').replaceAll(',', ''),
+      ) ??
+      0;
+
+  double get _conLai => _tongTien - _tienMat - _tienCK - _tienTruTraTruoc;
 
   // Tự điền Tiền mặt = tổng phải thu, chừng nào lái xe chưa sửa tay ô này.
   void _autoFillTienMat() {
@@ -237,6 +248,7 @@ class _NhapBanHangScreenState extends ConsumerState<NhapBanHangScreen> {
     _tienCKCtrl.dispose();
     _dieuChinhTienCtrl.dispose();
     _tienChenhLechVoCtrl.dispose();
+    _tienTruTraTruocCtrl.dispose();
     _ghiChuCtrl.dispose();
     for (final r in _saleRows) {
       r.dispose();
@@ -265,6 +277,23 @@ class _NhapBanHangScreenState extends ConsumerState<NhapBanHangScreen> {
         _matHangList = mh;
         _binhToVo = binhToVo;
       });
+    }
+  }
+
+  /// Tra số dư tiền khách đã chuyển trước (chỉ tra được khi online); im lặng bỏ qua nếu lỗi/offline.
+  Future<void> _loadSoDuTraTruoc() async {
+    final khServerId = _selectedKhachHang?['server_id'] as int?;
+    if (khServerId == null) return;
+    setState(() => _loadingSoDuTraTruoc = true);
+    try {
+      final online = await ConnectivityService.instance.checkOnline();
+      if (!online) return;
+      final soDu = await _repo.getSoDuTraTruoc(khServerId);
+      if (mounted) setState(() => _soDuTraTruoc = soDu);
+    } catch (_) {
+      // Bỏ qua — trường trừ tiền chuyển trước sẽ không hiển thị số dư nếu tra lỗi
+    } finally {
+      if (mounted) setState(() => _loadingSoDuTraTruoc = false);
     }
   }
 
@@ -389,6 +418,10 @@ class _NhapBanHangScreenState extends ConsumerState<NhapBanHangScreen> {
       _showError('Vui lòng nhập ít nhất 1 mặt hàng với số lượng > 0');
       return;
     }
+    if (_tienTruTraTruoc > (_soDuTraTruoc ?? 0)) {
+      _showError('Số tiền trừ vượt quá số dư đã chuyển trước hiện có');
+      return;
+    }
 
     setState(() => _saving = true);
 
@@ -431,6 +464,7 @@ class _NhapBanHangScreenState extends ConsumerState<NhapBanHangScreen> {
           'tienCK': _tienCK,
           'dieuChinhTien': _dieuChinhTien,
           'tienChenhLechVo': _tienChenhLechVo,
+          'tienTruTraTruoc': _tienTruTraTruoc,
           // Thời gian bán lấy từ điện thoại (giờ VN) để lưu đúng mốc thời gian vào DB
           'thoiGianBan': DateTime.now().toIso8601String(),
           if (_selectedTaiKhoanId != null) 'taiKhoanCKId': _selectedTaiKhoanId,
@@ -812,7 +846,11 @@ class _NhapBanHangScreenState extends ConsumerState<NhapBanHangScreen> {
                     AppRoutes.timKiemKhachHang,
                   );
                   if (selected != null && mounted) {
-                    setState(() => _selectedKhachHang = selected);
+                    setState(() {
+                      _selectedKhachHang = selected;
+                      _soDuTraTruoc = null;
+                    });
+                    _loadSoDuTraTruoc();
                   }
                 },
                 icon: Icon(
@@ -1444,6 +1482,29 @@ class _NhapBanHangScreenState extends ConsumerState<NhapBanHangScreen> {
               }),
             ],
             onChanged: (v) => setState(() => _selectedTaiKhoanId = v),
+          ),
+        ],
+        // Trừ tiền đã chuyển trước — khách đã chuyển khoản trả tiền hóa đơn trước đó
+        if (_selectedKhachHang != null) ...[
+          const SizedBox(height: 8),
+          TextField(
+            controller: _tienTruTraTruocCtrl,
+            keyboardType: TextInputType.number,
+            inputFormatters: [_ThousandsFormatter()],
+            onTap: () => _ensureVisible(_thanhToanSectionKey),
+            decoration: InputDecoration(
+              labelText: 'Trừ tiền đã chuyển trước',
+              helperText: _loadingSoDuTraTruoc
+                  ? 'Đang tra số dư...'
+                  : _soDuTraTruoc != null
+                      ? 'Còn lại: ${_fmtMoney.format(_soDuTraTruoc)} đ'
+                      : null,
+              border: const OutlineInputBorder(),
+              isDense: true,
+              suffixText: 'đ',
+              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            ),
+            onChanged: (_) => setState(() {}),
           ),
         ],
         const SizedBox(height: 8),

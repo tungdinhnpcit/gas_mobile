@@ -149,6 +149,18 @@ class ChuyenXeRepository {
     }
   }
 
+  /// Lấy số dư tiền khách hàng đã chuyển trước, dùng để trừ dần khi bán hàng.
+  Future<double> getSoDuTraTruoc(int khachHangId) async {
+    try {
+      final res = await ApiClient.instance.dio.get('/api/khach-hang/$khachHangId/so-du-tra-truoc');
+      final data = res.data as Map<String, dynamic>;
+      return (data['soDu'] as num?)?.toDouble() ?? 0;
+    } on DioException catch (e) {
+      debugPrint('[ChuyenXe] DioException getSoDuTraTruoc: ${e.type} | status=${e.response?.statusCode}');
+      rethrow;
+    }
+  }
+
   /// Lấy chi tiết chuyến xe theo ID kèm danh sách hàng hóa và ảnh đã upload.
   Future<ChuyenXeModel> getById(int id) async {
     debugPrint('[ChuyenXe] GET ${AppConstants.resolvedApiUrl}/api/chuyen-xe/$id');
