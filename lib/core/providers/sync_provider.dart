@@ -1,27 +1,16 @@
 // lib/core/providers/sync_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../services/connectivity_service.dart';
 import '../services/sync_service.dart';
-import '../database/local_database.dart';
 
-// Trạng thái online/offline của thiết bị
-final isOnlineProvider = StreamProvider<bool>((ref) {
-  return ConnectivityService.instance.onChanged;
-});
-
-// Số lượng bản ghi chưa đồng bộ (dùng cho badge DongBoScreen)
-final pendingCountProvider = FutureProvider<int>((ref) async {
-  return LocalDatabase.instance.getPendingCount();
-});
-
-// State của tiến trình đồng bộ
-class SyncNotifier extends StateNotifier<AsyncValue<SyncUploadResult?>> {
+/// Điều phối việc làm mới cache danh mục (app chỉ chạy online, không còn upload offline).
+class SyncNotifier extends StateNotifier<AsyncValue<SyncResult?>> {
   SyncNotifier() : super(const AsyncValue.data(null));
 
-  Future<SyncUploadResult> uploadPending() async {
+  /// Kéo lại toàn bộ danh mục từ server về cache SQLite, cập nhật state tiến trình.
+  Future<SyncResult> syncCatalog() async {
     state = const AsyncValue.loading();
     try {
-      final result = await SyncService.instance.uploadPendingData();
+      final result = await SyncService.instance.syncCatalog();
       state = AsyncValue.data(result);
       return result;
     } catch (e, st) {
@@ -29,13 +18,9 @@ class SyncNotifier extends StateNotifier<AsyncValue<SyncUploadResult?>> {
       rethrow;
     }
   }
-
-  Future<SyncResult> syncCatalog() async {
-    return SyncService.instance.syncCatalog();
-  }
 }
 
 final syncNotifierProvider =
-    StateNotifierProvider<SyncNotifier, AsyncValue<SyncUploadResult?>>(
+    StateNotifierProvider<SyncNotifier, AsyncValue<SyncResult?>>(
   (ref) => SyncNotifier(),
 );

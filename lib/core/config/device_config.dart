@@ -35,9 +35,8 @@ class DeviceConfig {
             fingerprint.contains('qemu');
 
         if (isEmulator) {
-          // Emulator: dùng 10.0.2.2 để gọi localhost của host, qua nginx gateway
-          // (đúng mô hình production: app → nginx :8202/apimanager → backend)
-          return 'http://10.0.2.2:8202/apimanager';
+          // Emulator: dùng 10.0.2.2 để gọi localhost của host (cấu hình trong local_dev_config.dart)
+          return LocalDevConfig.emulatorApiUrl;
         }
       } catch (e) {
         debugPrint('[DeviceConfig] Error detecting emulator: $e');

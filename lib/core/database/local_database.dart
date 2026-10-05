@@ -17,7 +17,7 @@ class LocalDatabase {
     final dir = await getDatabasesPath();
     return openDatabase(
       join(dir, 'gasmanager.db'),
-      version: 9,
+      version: 10,
       onCreate: _create,
       onUpgrade: _onUpgrade,
     );
@@ -36,25 +36,6 @@ class LocalDatabase {
         )
       ''');
     }
-    if (oldVersion < 3) {
-      await db.execute('ALTER TABLE ban_hang_offline ADD COLUMN tien_mat REAL NOT NULL DEFAULT 0');
-      await db.execute('ALTER TABLE ban_hang_offline ADD COLUMN tien_ck  REAL NOT NULL DEFAULT 0');
-      await db.execute('''
-        CREATE TABLE IF NOT EXISTS ban_hang_gas_du_local (
-          local_id              INTEGER PRIMARY KEY AUTOINCREMENT,
-          chuyen_xe_server_id   INTEGER,
-          chuyen_xe_local_id    INTEGER,
-          khach_hang_server_id  INTEGER,
-          khach_hang_local_id   INTEGER,
-          mat_hang_id           INTEGER NOT NULL,
-          so_kg                 REAL NOT NULL DEFAULT 0,
-          don_gia               REAL NOT NULL DEFAULT 0,
-          thanh_tien            REAL NOT NULL DEFAULT 0,
-          is_synced             INTEGER NOT NULL DEFAULT 0,
-          created_at            TEXT
-        )
-      ''');
-    }
     if (oldVersion < 4) {
       await db.execute('''
         CREATE TABLE IF NOT EXISTS cache_tai_khoan (
@@ -65,32 +46,6 @@ class LocalDatabase {
           so_tai_khoan  TEXT,
           ngan_hang     TEXT,
           is_active     INTEGER DEFAULT 1
-        )
-      ''');
-      await db.execute(
-        'ALTER TABLE ban_hang_offline ADD COLUMN tai_khoan_ck_id INTEGER NULL',
-      );
-    }
-    if (oldVersion < 5) {
-      await db.execute(
-        'ALTER TABLE ban_hang_offline ADD COLUMN dieu_chinh_tien REAL NOT NULL DEFAULT 0',
-      );
-    }
-    if (oldVersion < 6) {
-      await db.execute(
-        'ALTER TABLE ban_hang_offline ADD COLUMN tien_chenh_lech_vo REAL NOT NULL DEFAULT 0',
-      );
-      await db.execute('''
-        CREATE TABLE IF NOT EXISTS ban_hang_no_vo_local (
-          local_id              INTEGER PRIMARY KEY AUTOINCREMENT,
-          chuyen_xe_server_id   INTEGER,
-          chuyen_xe_local_id    INTEGER,
-          khach_hang_server_id  INTEGER,
-          khach_hang_local_id   INTEGER,
-          mat_hang_id           INTEGER NOT NULL,
-          so_luong              INTEGER NOT NULL DEFAULT 0,
-          is_synced             INTEGER NOT NULL DEFAULT 0,
-          created_at            TEXT
         )
       ''');
     }
@@ -120,25 +75,23 @@ class LocalDatabase {
         'ALTER TABLE cache_xe ADD COLUMN nhan_vien_phu_xe_id INTEGER',
       );
     }
+    if (oldVersion < 10) {
+      // App chỉ chạy online: xoá các bảng hàng đợi offline, chỉ giữ cache danh mục
+      for (final t in const [
+        'chuyen_xe_offline',
+        'ban_hang_offline',
+        'ban_hang_gas_du_local',
+        'ban_hang_no_vo_local',
+      ]) {
+        await db.execute('DROP TABLE IF EXISTS $t');
+      }
+      // Bỏ khách hàng tạo offline chưa có server_id (không còn cơ chế đồng bộ lên)
+      await db.execute('DELETE FROM khach_hang_local WHERE server_id IS NULL');
+    }
 
   }
 
   Future<void> _create(Database db, int version) async {
-    await db.execute('''
-      CREATE TABLE chuyen_xe_offline (
-        local_id    INTEGER PRIMARY KEY AUTOINCREMENT,
-        server_id   INTEGER UNIQUE,
-        ma_chuyen_xe TEXT,
-        ngay_xuat   TEXT NOT NULL,
-        xe_id       INTEGER NOT NULL,
-        bien_so_xe  TEXT,
-        nhan_vien_id INTEGER NOT NULL,
-        trang_thai  TEXT NOT NULL DEFAULT 'dang-giao',
-        loai        TEXT NOT NULL DEFAULT 'mobile',
-        is_synced   INTEGER NOT NULL DEFAULT 0,
-        created_at  TEXT
-      )
-    ''');
     await db.execute('''
       CREATE TABLE cache_mat_hang (
         server_id       INTEGER PRIMARY KEY,
@@ -212,57 +165,6 @@ class LocalDatabase {
       )
     ''');
     await db.execute('''
-      CREATE TABLE ban_hang_offline (
-        local_id              INTEGER PRIMARY KEY AUTOINCREMENT,
-        chuyen_xe_server_id   INTEGER,
-        chuyen_xe_local_id    INTEGER,
-        khach_hang_server_id  INTEGER,
-        khach_hang_local_id   INTEGER,
-        mat_hang_id           INTEGER NOT NULL,
-        so_luong              INTEGER NOT NULL DEFAULT 0,
-        don_gia               REAL NOT NULL DEFAULT 0,
-        thanh_tien            REAL NOT NULL DEFAULT 0,
-        so_vo_ban             INTEGER DEFAULT 0,
-        so_vo_thu             INTEGER DEFAULT 0,
-        tien_mat              REAL NOT NULL DEFAULT 0,
-        tien_ck               REAL NOT NULL DEFAULT 0,
-        dieu_chinh_tien       REAL NOT NULL DEFAULT 0,
-        tien_chenh_lech_vo    REAL NOT NULL DEFAULT 0,
-        ghi_chu               TEXT,
-        created_at            TEXT,
-        is_synced             INTEGER NOT NULL DEFAULT 0,
-        sync_error            TEXT
-      )
-    ''');
-    await db.execute('''
-      CREATE TABLE ban_hang_gas_du_local (
-        local_id              INTEGER PRIMARY KEY AUTOINCREMENT,
-        chuyen_xe_server_id   INTEGER,
-        chuyen_xe_local_id    INTEGER,
-        khach_hang_server_id  INTEGER,
-        khach_hang_local_id   INTEGER,
-        mat_hang_id           INTEGER NOT NULL,
-        so_kg                 REAL NOT NULL DEFAULT 0,
-        don_gia               REAL NOT NULL DEFAULT 0,
-        thanh_tien            REAL NOT NULL DEFAULT 0,
-        is_synced             INTEGER NOT NULL DEFAULT 0,
-        created_at            TEXT
-      )
-    ''');
-    await db.execute('''
-      CREATE TABLE ban_hang_no_vo_local (
-        local_id              INTEGER PRIMARY KEY AUTOINCREMENT,
-        chuyen_xe_server_id   INTEGER,
-        chuyen_xe_local_id    INTEGER,
-        khach_hang_server_id  INTEGER,
-        khach_hang_local_id   INTEGER,
-        mat_hang_id           INTEGER NOT NULL,
-        so_luong              INTEGER NOT NULL DEFAULT 0,
-        is_synced             INTEGER NOT NULL DEFAULT 0,
-        created_at            TEXT
-      )
-    ''');
-    await db.execute('''
       CREATE TABLE cache_tai_khoan (
         server_id     INTEGER PRIMARY KEY,
         ma_tai_khoan  TEXT NOT NULL,
@@ -273,45 +175,6 @@ class LocalDatabase {
         is_active     INTEGER DEFAULT 1
       )
     ''');
-  }
-
-  // ── Chuyến xe offline ─────────────────────────────────────────────────────
-
-  Future<int> insertChuyenXeOffline(Map<String, dynamic> data) async {
-    final d = await db;
-    return d.insert('chuyen_xe_offline', data,
-        conflictAlgorithm: ConflictAlgorithm.replace);
-  }
-
-  Future<Map<String, dynamic>?> getActiveTripToday(
-      int nhanVienId, String today) async {
-    final d = await db;
-    final rows = await d.query(
-      'chuyen_xe_offline',
-      where:
-          "nhan_vien_id = ? AND ngay_xuat = ? AND trang_thai NOT IN ('hoan-thanh','huy')",
-      whereArgs: [nhanVienId, today],
-      orderBy: 'local_id DESC',
-      limit: 1,
-    );
-    return rows.isEmpty ? null : rows.first;
-  }
-
-  Future<void> markChuyenXeSynced(
-      int localId, int serverId, String maCX) async {
-    final d = await db;
-    await d.update(
-      'chuyen_xe_offline',
-      {'server_id': serverId, 'ma_chuyen_xe': maCX, 'is_synced': 1},
-      where: 'local_id = ?',
-      whereArgs: [localId],
-    );
-  }
-
-  Future<List<Map<String, dynamic>>> getPendingChuyenXe() async {
-    final d = await db;
-    return d.query('chuyen_xe_offline',
-        where: 'is_synced = 0', orderBy: 'local_id ASC');
   }
 
   // ── Cache mặt hàng ────────────────────────────────────────────────────────
@@ -474,11 +337,6 @@ class LocalDatabase {
     await batch.commit(noResult: true);
   }
 
-  Future<int> insertKhachHangOffline(Map<String, dynamic> data) async {
-    final d = await db;
-    return d.insert('khach_hang_local', data);
-  }
-
   Future<List<Map<String, dynamic>>> getKhachHangList({String? search}) async {
     final d = await db;
     if (search == null || search.isEmpty) {
@@ -491,97 +349,6 @@ class LocalDatabase {
       whereArgs: ['%$search%'],
       orderBy: 'ten_khach_hang ASC',
     );
-  }
-
-  Future<void> markKhachHangSynced(int localId, int serverId) async {
-    final d = await db;
-    await d.update(
-      'khach_hang_local',
-      {'server_id': serverId, 'is_synced': 1, 'is_offline_created': 0},
-      where: 'local_id = ?',
-      whereArgs: [localId],
-    );
-  }
-
-  Future<List<Map<String, dynamic>>> getPendingKhachHang() async {
-    final d = await db;
-    return d.query('khach_hang_local', where: 'is_synced = 0');
-  }
-
-  // ── Bán hàng offline ─────────────────────────────────────────────────────
-
-  Future<int> insertBanHangOffline(Map<String, dynamic> data) async {
-    final d = await db;
-    return d.insert('ban_hang_offline', data);
-  }
-
-  Future<List<Map<String, dynamic>>> getPendingBanHang() async {
-    final d = await db;
-    return d.query('ban_hang_offline',
-        where: 'is_synced = 0', orderBy: 'local_id ASC');
-  }
-
-  Future<void> markBanHangSynced(int localId) async {
-    final d = await db;
-    await d.update('ban_hang_offline', {'is_synced': 1},
-        where: 'local_id = ?', whereArgs: [localId]);
-  }
-
-  Future<void> markBanHangSyncError(int localId, String error) async {
-    final d = await db;
-    await d.update('ban_hang_offline', {'sync_error': error},
-        where: 'local_id = ?', whereArgs: [localId]);
-  }
-
-  // ── Bán gas dư offline ────────────────────────────────────────────────────
-
-  Future<int> insertBanHangGasDuLocal(Map<String, dynamic> data) async {
-    final d = await db;
-    return d.insert('ban_hang_gas_du_local', data);
-  }
-
-  Future<List<Map<String, dynamic>>> getPendingBanHangGasDu() async {
-    final d = await db;
-    return d.query('ban_hang_gas_du_local',
-        where: 'is_synced = 0', orderBy: 'local_id ASC');
-  }
-
-  Future<void> markBanHangGasDuSynced(int localId) async {
-    final d = await db;
-    await d.update('ban_hang_gas_du_local', {'is_synced': 1},
-        where: 'local_id = ?', whereArgs: [localId]);
-  }
-
-  // ── Nợ vỏ offline ────────────────────────────────────────────────────────
-
-  Future<int> insertBanHangNoVoLocal(Map<String, dynamic> data) async {
-    final d = await db;
-    return d.insert('ban_hang_no_vo_local', data);
-  }
-
-  Future<List<Map<String, dynamic>>> getPendingBanHangNoVo() async {
-    final d = await db;
-    return d.query('ban_hang_no_vo_local',
-        where: 'is_synced = 0', orderBy: 'local_id ASC');
-  }
-
-  Future<void> markBanHangNoVoSynced(int localId) async {
-    final d = await db;
-    await d.update('ban_hang_no_vo_local', {'is_synced': 1},
-        where: 'local_id = ?', whereArgs: [localId]);
-  }
-
-  Future<int> getPendingCount() async {
-    final d = await db;
-    final kh = Sqflite.firstIntValue(await d.rawQuery(
-        'SELECT COUNT(*) FROM khach_hang_local WHERE is_synced = 0')) ?? 0;
-    final cx = Sqflite.firstIntValue(await d.rawQuery(
-        'SELECT COUNT(*) FROM chuyen_xe_offline WHERE is_synced = 0')) ?? 0;
-    final bh = Sqflite.firstIntValue(await d.rawQuery(
-        'SELECT COUNT(*) FROM ban_hang_offline WHERE is_synced = 0')) ?? 0;
-    final gd = Sqflite.firstIntValue(await d.rawQuery(
-        'SELECT COUNT(*) FROM ban_hang_gas_du_local WHERE is_synced = 0')) ?? 0;
-    return kh + cx + bh + gd;
   }
 
 }

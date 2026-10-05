@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/database/local_database.dart';
-import '../../../../core/services/connectivity_service.dart';
 import '../../../../core/utils/vietnamese_text.dart';
 import '../../../khach_hang/data/repositories/khach_hang_repository.dart';
 
@@ -38,33 +37,29 @@ class _TimKiemKhachHangScreenState extends State<TimKiemKhachHangScreen> {
     super.dispose();
   }
 
-  /// Tải danh sách khách hàng theo hướng ưu tiên online:
-  /// - Khi có mạng: gọi API /api/khach-hang/all để lấy danh sách mới nhất
-  ///   (bao gồm khách vừa thêm trên web), đồng thời cập nhật lại cache SQLite.
-  /// - Khi mất mạng hoặc API lỗi: fallback dùng cache local hiện có.
-  /// Danh sách hiển thị luôn đọc lại từ cache để giữ nguyên format Map và
-  /// vẫn thấy được khách tạo offline chưa đồng bộ (server_id = null).
+  /// Tải danh sách khách hàng:
+  /// - Gọi API /api/khach-hang/all để lấy danh sách mới nhất (bao gồm khách
+  ///   vừa thêm trên web), đồng thời cập nhật lại cache SQLite.
+  /// - API lỗi: dùng cache danh mục đã đồng bộ khi mở app.
+  /// Danh sách hiển thị luôn đọc lại từ cache để giữ nguyên format Map.
   Future<void> _load() async {
     try {
-      final online = await ConnectivityService.instance.checkOnline();
-      if (online) {
-        final list = await _repo.getAll();
-        await _db.upsertKhachHangList(list.map((kh) => {
-              'server_id': kh.id,
-              'ma_khach_hang': kh.maKhachHang,
-              'ten_khach_hang': kh.tenKhachHang,
-              'dia_chi': kh.diaChi,
-              'so_dien_thoai': kh.soDienThoai,
-              'email': kh.email,
-              'latitude': kh.latitude,
-              'longitude': kh.longitude,
-              'is_active': kh.isActive ? 1 : 0,
-              'is_offline_created': 0,
-              'is_synced': 1,
-            }).toList());
-      }
+      final list = await _repo.getAll();
+      await _db.upsertKhachHangList(list.map((kh) => {
+            'server_id': kh.id,
+            'ma_khach_hang': kh.maKhachHang,
+            'ten_khach_hang': kh.tenKhachHang,
+            'dia_chi': kh.diaChi,
+            'so_dien_thoai': kh.soDienThoai,
+            'email': kh.email,
+            'latitude': kh.latitude,
+            'longitude': kh.longitude,
+            'is_active': kh.isActive ? 1 : 0,
+            'is_offline_created': 0,
+            'is_synced': 1,
+          }).toList());
     } catch (_) {
-      // Mất mạng hoặc lỗi API → dùng cache hiện có, không chặn người dùng
+      // Lỗi API → dùng cache hiện có, không chặn người dùng
     }
 
     final list = await _db.getKhachHangList();

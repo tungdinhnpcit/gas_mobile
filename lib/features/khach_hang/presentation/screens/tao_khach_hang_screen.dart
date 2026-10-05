@@ -7,7 +7,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/database/local_database.dart';
 import '../../../../core/network/api_client.dart';
-import '../../../../core/services/connectivity_service.dart';
 import '../../../../core/widgets/app_bottom_nav_bar.dart';
 
 class TaoKhachHangScreen extends ConsumerStatefulWidget {
@@ -19,16 +18,15 @@ class TaoKhachHangScreen extends ConsumerStatefulWidget {
   const TaoKhachHangScreen({super.key, this.onCreated});
 
   @override
-  ConsumerState<TaoKhachHangScreen> createState() =>
-      _TaoKhachHangScreenState();
+  ConsumerState<TaoKhachHangScreen> createState() => _TaoKhachHangScreenState();
 }
 
 class _TaoKhachHangScreenState extends ConsumerState<TaoKhachHangScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _tenCtrl    = TextEditingController();
+  final _tenCtrl = TextEditingController();
   final _diaChiCtrl = TextEditingController();
-  final _sdtCtrl    = TextEditingController();
-  final _emailCtrl  = TextEditingController();
+  final _sdtCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
 
   double? _latitude;
   double? _longitude;
@@ -49,7 +47,10 @@ class _TaoKhachHangScreenState extends ConsumerState<TaoKhachHangScreen> {
 
   // Lấy tọa độ GPS hiện tại của thiết bị
   Future<void> _getLocation() async {
-    setState(() { _gettingLocation = true; _locationTouched = true; });
+    setState(() {
+      _gettingLocation = true;
+      _locationTouched = true;
+    });
     try {
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
@@ -58,10 +59,14 @@ class _TaoKhachHangScreenState extends ConsumerState<TaoKhachHangScreen> {
       if (permission == LocationPermission.deniedForever ||
           permission == LocationPermission.denied) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Không có quyền truy cập vị trí. Vui lòng bật trong Cài đặt.'),
-            backgroundColor: Colors.red,
-          ));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Không có quyền truy cập vị trí. Vui lòng bật trong Cài đặt.',
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
         }
         return;
       }
@@ -74,16 +79,18 @@ class _TaoKhachHangScreenState extends ConsumerState<TaoKhachHangScreen> {
       );
       if (mounted) {
         setState(() {
-          _latitude  = pos.latitude;
+          _latitude = pos.latitude;
           _longitude = pos.longitude;
         });
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Không lấy được vị trí: $e'),
-          backgroundColor: Colors.red,
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Không lấy được vị trí: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _gettingLocation = false);
@@ -94,17 +101,18 @@ class _TaoKhachHangScreenState extends ConsumerState<TaoKhachHangScreen> {
     // Kiểm tra GPS trước form validate
     if (_latitude == null) {
       setState(() => _locationTouched = true);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Vui lòng lấy tọa độ GPS trước khi lưu'),
-        backgroundColor: Colors.red,
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng lấy tọa độ GPS trước khi lưu'),
+          backgroundColor: Colors.red,
+        ),
+      );
       return;
     }
     if (!(_formKey.currentState?.validate() ?? false)) return;
     setState(() => _saving = true);
 
     try {
-      final online = await ConnectivityService.instance.checkOnline();
       final data = {
         'tenKhachHang': _tenCtrl.text.trim(),
         'diaChi': _diaChiCtrl.text.trim(),
@@ -115,76 +123,50 @@ class _TaoKhachHangScreenState extends ConsumerState<TaoKhachHangScreen> {
         'isActive': true,
       };
 
-      if (online) {
-        debugPrint('[TaoKhachHang] POST /api/khach-hang data=$data');
-        final res = await ApiClient.instance.dio.post('/api/khach-hang', data: data);
-        debugPrint('[TaoKhachHang] Response ${res.statusCode}: ${res.data}');
-        final serverId = res.data['id'] as int;
-        await LocalDatabase.instance.upsertKhachHangList([{
-          'server_id':        serverId,
-          'ten_khach_hang':   data['tenKhachHang'],
-          'dia_chi':          data['diaChi'],
-          'so_dien_thoai':    data['soDienThoai'],
-          'email':            data['email'],
-          'latitude':         _latitude,
-          'longitude':        _longitude,
-          'is_active':        1,
+      debugPrint('[TaoKhachHang] POST /api/khach-hang data=$data');
+      final res = await ApiClient.instance.dio.post(
+        '/api/khach-hang',
+        data: data,
+      );
+      debugPrint('[TaoKhachHang] Response ${res.statusCode}: ${res.data}');
+      final serverId = res.data['id'] as int;
+      await LocalDatabase.instance.upsertKhachHangList([
+        {
+          'server_id': serverId,
+          'ten_khach_hang': data['tenKhachHang'],
+          'dia_chi': data['diaChi'],
+          'so_dien_thoai': data['soDienThoai'],
+          'email': data['email'],
+          'latitude': _latitude,
+          'longitude': _longitude,
+          'is_active': 1,
           'is_offline_created': 0,
-          'is_synced':        1,
-          'created_at':       DateTime.now().toIso8601String(),
-        }]);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          'is_synced': 1,
+          'created_at': DateTime.now().toIso8601String(),
+        },
+      ]);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
             content: Text('Đã tạo khách hàng'),
             backgroundColor: Colors.green,
-          ));
-          // Trả về khách vừa tạo (cùng bộ key với màn tìm kiếm) để màn gọi tự chọn.
-          // Ưu tiên callback (không phụ thuộc pop-result vốn bị lỗi với PopScope);
-          // vẫn giữ pop kèm giá trị để tương thích các màn gọi cũ dùng return value.
-          final khMap = <String, dynamic>{
-            'server_id':      serverId,
-            'local_id':       null,
-            'ten_khach_hang': data['tenKhachHang'],
-            'dia_chi':        data['diaChi'],
-            'so_dien_thoai':  data['soDienThoai'],
-            'email':          data['email'],
-            'latitude':       _latitude,
-            'longitude':      _longitude,
-          };
-          widget.onCreated?.call(khMap);
-          context.pop(khMap);
-        }
-      } else {
-        final localId = await LocalDatabase.instance.insertKhachHangOffline({
-          'ten_khach_hang':   data['tenKhachHang'],
-          'dia_chi':          data['diaChi'],
-          'so_dien_thoai':    data['soDienThoai'],
-          'email':            data['email'],
-          'latitude':         _latitude,
-          'longitude':        _longitude,
-          'is_active':        1,
-          'is_offline_created': 1,
-          'is_synced':        0,
-          'created_at':       DateTime.now().toIso8601String(),
-        });
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Đã lưu offline. Sẽ đồng bộ khi có mạng.'),
-          ));
-          // Trả về khách vừa tạo offline (server_id null, dùng local_id) để màn gọi tự chọn
-          final khMap = <String, dynamic>{
-            'server_id':      null,
-            'local_id':       localId,
-            'ten_khach_hang': data['tenKhachHang'],
-            'dia_chi':        data['diaChi'],
-            'so_dien_thoai':  data['soDienThoai'],
-            'email':          data['email'],
-            'latitude':       _latitude,
-            'longitude':      _longitude,
-          };
-          widget.onCreated?.call(khMap);
-          context.pop(khMap);
-        }
+          ),
+        );
+        // Trả về khách vừa tạo (cùng bộ key với màn tìm kiếm) để màn gọi tự chọn.
+        // Ưu tiên callback (không phụ thuộc pop-result vốn bị lỗi với PopScope);
+        // vẫn giữ pop kèm giá trị để tương thích các màn gọi cũ dùng return value.
+        final khMap = <String, dynamic>{
+          'server_id': serverId,
+          'local_id': null,
+          'ten_khach_hang': data['tenKhachHang'],
+          'dia_chi': data['diaChi'],
+          'so_dien_thoai': data['soDienThoai'],
+          'email': data['email'],
+          'latitude': _latitude,
+          'longitude': _longitude,
+        };
+        widget.onCreated?.call(khMap);
+        context.pop(khMap);
       }
     } catch (e) {
       if (e is DioException) {
@@ -193,20 +175,22 @@ class _TaoKhachHangScreenState extends ConsumerState<TaoKhachHangScreen> {
         debugPrint('[TaoKhachHang] response=${e.response?.data}');
         debugPrint('[TaoKhachHang] message=${e.message}');
         debugPrint('[TaoKhachHang] url=${e.requestOptions.uri}');
-        final errMsg = e.response?.data?['message'] ?? e.message ?? e.toString();
+        final errMsg =
+            e.response?.data?['message'] ?? e.message ?? e.toString();
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('Lỗi: $errMsg'),
-            backgroundColor: Colors.red,
-          ));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Lỗi: $errMsg'),
+              backgroundColor: Colors.red,
+            ),
+          );
         }
       } else {
         debugPrint('[TaoKhachHang] Error: $e');
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('Lỗi: $e'),
-            backgroundColor: Colors.red,
-          ));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Lỗi: $e'), backgroundColor: Colors.red),
+          );
         }
       }
     } finally {
@@ -239,8 +223,9 @@ class _TaoKhachHangScreenState extends ConsumerState<TaoKhachHangScreen> {
                   labelText: 'Tên khách hàng *',
                   border: OutlineInputBorder(),
                 ),
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? 'Vui lòng nhập tên' : null,
+                validator: (v) => (v == null || v.trim().isEmpty)
+                    ? 'Vui lòng nhập tên'
+                    : null,
               ),
               const SizedBox(height: 12),
 
@@ -251,8 +236,9 @@ class _TaoKhachHangScreenState extends ConsumerState<TaoKhachHangScreen> {
                   labelText: 'Địa chỉ *',
                   border: OutlineInputBorder(),
                 ),
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? 'Vui lòng nhập địa chỉ' : null,
+                validator: (v) => (v == null || v.trim().isEmpty)
+                    ? 'Vui lòng nhập địa chỉ'
+                    : null,
               ),
               const SizedBox(height: 12),
 
@@ -264,8 +250,9 @@ class _TaoKhachHangScreenState extends ConsumerState<TaoKhachHangScreen> {
                   labelText: 'Số điện thoại *',
                   border: OutlineInputBorder(),
                 ),
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? 'Vui lòng nhập số điện thoại' : null,
+                validator: (v) => (v == null || v.trim().isEmpty)
+                    ? 'Vui lòng nhập số điện thoại'
+                    : null,
               ),
               const SizedBox(height: 12),
 
@@ -277,8 +264,8 @@ class _TaoKhachHangScreenState extends ConsumerState<TaoKhachHangScreen> {
                     color: locationError
                         ? Colors.red
                         : hasLocation
-                            ? const Color(0xFF00897B)
-                            : Colors.grey.shade400,
+                        ? const Color(0xFF00897B)
+                        : Colors.grey.shade400,
                     width: locationError || hasLocation ? 1.5 : 1.0,
                   ),
                   borderRadius: BorderRadius.circular(4),
@@ -294,8 +281,8 @@ class _TaoKhachHangScreenState extends ConsumerState<TaoKhachHangScreen> {
                           color: locationError
                               ? Colors.red
                               : hasLocation
-                                  ? const Color(0xFF00897B)
-                                  : Colors.grey.shade600,
+                              ? const Color(0xFF00897B)
+                              : Colors.grey.shade600,
                         ),
                         const SizedBox(width: 6),
                         Text(
@@ -318,17 +305,23 @@ class _TaoKhachHangScreenState extends ConsumerState<TaoKhachHangScreen> {
                         onPressed: _gettingLocation ? null : _getLocation,
                         icon: _gettingLocation
                             ? const SizedBox(
-                                width: 16, height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2))
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
                             : Icon(
                                 hasLocation ? Icons.refresh : Icons.my_location,
                                 size: 18,
                               ),
-                        label: Text(_gettingLocation
-                            ? 'Đang lấy vị trí...'
-                            : hasLocation
-                                ? 'Lấy lại vị trí'
-                                : 'Lấy vị trí hiện tại'),
+                        label: Text(
+                          _gettingLocation
+                              ? 'Đang lấy vị trí...'
+                              : hasLocation
+                              ? 'Lấy lại vị trí'
+                              : 'Lấy vị trí hiện tại',
+                        ),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: const Color(0xFF00897B),
                           side: const BorderSide(color: Color(0xFF00897B)),
@@ -342,8 +335,11 @@ class _TaoKhachHangScreenState extends ConsumerState<TaoKhachHangScreen> {
                       const SizedBox(height: 8),
                       Row(
                         children: [
-                          const Icon(Icons.check_circle,
-                              size: 14, color: Color(0xFF00897B)),
+                          const Icon(
+                            Icons.check_circle,
+                            size: 14,
+                            color: Color(0xFF00897B),
+                          ),
                           const SizedBox(width: 6),
                           Text(
                             '${_latitude!.toStringAsFixed(6)}, ${_longitude!.toStringAsFixed(6)}',
@@ -383,8 +379,10 @@ class _TaoKhachHangScreenState extends ConsumerState<TaoKhachHangScreen> {
                 onPressed: _saving ? null : _save,
                 icon: _saving
                     ? const SizedBox(
-                        width: 18, height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2))
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
                     : const Icon(Icons.save_rounded),
                 label: Text(_saving ? 'Đang lưu...' : 'Lưu'),
                 style: ElevatedButton.styleFrom(
@@ -392,7 +390,8 @@ class _TaoKhachHangScreenState extends ConsumerState<TaoKhachHangScreen> {
                   foregroundColor: Colors.white,
                   minimumSize: const Size.fromHeight(46),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
               ),
               const SizedBox(height: 16),

@@ -7,7 +7,6 @@ import 'package:intl/intl.dart';
 import '../../../../core/database/local_database.dart';
 import '../../../../core/providers/user_info_provider.dart';
 import '../../../../core/router/app_routes.dart';
-import '../../../../core/services/connectivity_service.dart';
 import '../../../../core/widgets/app_bottom_nav_bar.dart';
 import 'chuyen_xe_theo_ngay_screen.dart';
 
@@ -170,17 +169,6 @@ class _BatDauChuyenScreenState extends ConsumerState<BatDauChuyenScreen> {
 
     setState(() => _loading = true);
     try {
-      final online = await ConnectivityService.instance.checkOnline();
-      if (!online) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Cần kết nối mạng để xem danh sách chuyến xe'),
-            backgroundColor: Colors.orange,
-          ));
-        }
-        return;
-      }
-
       if (mounted) {
         context.push(
           AppRoutes.banHangTheoNgay,

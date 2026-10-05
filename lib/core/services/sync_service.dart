@@ -34,21 +34,6 @@ class SyncResult {
   });
 }
 
-class SyncUploadResult {
-  final int khCount;
-  final int cxCount;
-  final int bhCount;
-  final List<String> errors;
-  bool get hasErrors => errors.isNotEmpty;
-
-  const SyncUploadResult({
-    this.khCount = 0,
-    this.cxCount = 0,
-    this.bhCount = 0,
-    this.errors = const [],
-  });
-}
-
 class SyncService {
   static final SyncService instance = SyncService._();
   SyncService._();
@@ -56,21 +41,14 @@ class SyncService {
   final _db = LocalDatabase.instance;
   Dio get _dio => ApiClient.instance.dio;
 
-  static const _syncDateKey = 'last_catalog_sync_date';
+  // ── Catalog sync (chạy mỗi lần mở app / app quay lại foreground) ─────────
 
-  // ── Catalog sync ────────────────────────────────────────────────────────
+  static const _lastSyncKey = 'last_catalog_sync_at';
 
-  Future<bool> shouldSyncToday() async {
+  /// Đọc thời điểm đồng bộ danh mục gần nhất (null nếu chưa từng đồng bộ).
+  Future<DateTime?> lastSyncAt() async {
     final prefs = await SharedPreferences.getInstance();
-    final last = prefs.getString(_syncDateKey) ?? '';
-    final today = DateTime.now().toIso8601String().substring(0, 10);
-    return last != today;
-  }
-
-  Future<void> markSyncedToday() async {
-    final prefs = await SharedPreferences.getInstance();
-    final today = DateTime.now().toIso8601String().substring(0, 10);
-    await prefs.setString(_syncDateKey, today);
+    return DateTime.tryParse(prefs.getString(_lastSyncKey) ?? '');
   }
 
   /// Kéo giá bán đã cấu hình của một ngày về cache. Mặt hàng chưa cấu hình
@@ -159,10 +137,11 @@ class SyncService {
     } catch (e) { debugPrint('[SYNC] LỖI nha-cung-cap: $e'); }
 
     try {
-      // Khách hàng
-      final khRes = await _dio.get('/api/khach-hang',
-          queryParameters: {'pageSize': 1000, 'isActive': true});
-      final khItems = (khRes.data['items'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+      // Khách hàng — dùng /all để lấy toàn bộ, tránh bị cap pageSize
+      final khRes = await _dio.get('/api/khach-hang/all');
+      final khItems = ((khRes.data as List?)?.cast<Map<String, dynamic>>() ?? [])
+          .where((e) => e['isActive'] != false)
+          .toList();
       debugPrint('[SYNC] khach-hang: ${khItems.length} items');
       if (khItems.isNotEmpty) {
         final existingKh = await _db.getKhachHangList();
@@ -188,9 +167,11 @@ class SyncService {
     } catch (e) { debugPrint('[SYNC] LỖI khach-hang: $e'); }
 
     try {
-      // Xe
-      final xeRes = await _dio.get('/api/xe', queryParameters: {'isActive': true});
-      final xeItems = (xeRes.data['items'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+      // Xe — dùng /all để lấy toàn bộ, tránh bị cap pageSize
+      final xeRes = await _dio.get('/api/xe/all');
+      final xeItems = ((xeRes.data as List?)?.cast<Map<String, dynamic>>() ?? [])
+          .where((e) => e['isActive'] != false)
+          .toList();
       debugPrint('[SYNC] xe: ${xeItems.length} items');
       if (xeItems.isNotEmpty) {
         final existingXe = await _db.getXeList();
@@ -246,6 +227,9 @@ class SyncService {
       }
     } catch (e) { debugPrint('[SYNC] LỖI tai-khoan: $e'); }
 
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_lastSyncKey, DateTime.now().toIso8601String());
+
     return SyncResult(
       matHangMoi: matHangMoi,
       nhaCCMoi: nhaCCMoi,
@@ -254,111 +238,5 @@ class SyncService {
       nhanVienMoi: nhanVienMoi,
       taiKhoanMoi: taiKhoanMoi,
     );
-  }
-
-  // ── Upload dữ liệu offline ────────────────────────────────────────────────
-
-  /// Đồng bộ tất cả dữ liệu offline lên server theo thứ tự: KH → CX → BH.
-  Future<SyncUploadResult> uploadPendingData() async {
-    int khCount = 0, cxCount = 0, bhCount = 0;
-    final errors = <String>[];
-
-    // 1. Sync khách hàng tạo offline
-    final pendingKh = await _db.getPendingKhachHang();
-    for (final kh in pendingKh) {
-      try {
-        final res = await _dio.post('/api/khach-hang', data: {
-          'tenKhachHang': kh['ten_khach_hang'],
-          'diaChi': kh['dia_chi'],
-          'soDienThoai': kh['so_dien_thoai'],
-          'email': kh['email'],
-          'latitude': kh['latitude'],
-          'longitude': kh['longitude'],
-          'isActive': true,
-        });
-        await _db.markKhachHangSynced(kh['local_id'] as int, res.data['id'] as int);
-        khCount++;
-      } catch (e) {
-        errors.add('Khách hàng ${kh['ten_khach_hang']}: $e');
-      }
-    }
-
-    // 2. Sync chuyến xe tạo offline
-    final pendingCx = await _db.getPendingChuyenXe();
-    for (final cx in pendingCx) {
-      try {
-        final res = await _dio.post('/api/chuyen-xe', data: {
-          'ngayXuat': cx['ngay_xuat'],
-          'xeId': cx['xe_id'],
-          'nhanVienId': cx['nhan_vien_id'],
-          'loai': 'mobile',
-          'trangThai': 'dang-giao',
-          'isActive': true,
-          'chiTiet': [],
-        });
-        await _db.markChuyenXeSynced(
-          cx['local_id'] as int,
-          res.data['id'] as int,
-          res.data['maChuyenXe'] as String,
-        );
-        cxCount++;
-      } catch (e) {
-        errors.add('Chuyến xe ${cx['ngay_xuat']}: $e');
-      }
-    }
-
-    // 3. Sync bán hàng offline
-    final pendingBh = await _db.getPendingBanHang();
-    for (final bh in pendingBh) {
-      try {
-        // Resolve server_id chuyến xe (nếu tạo offline, lấy server_id sau khi sync bước 2)
-        int? chuyenXeServerId = bh['chuyen_xe_server_id'] as int?;
-        if (chuyenXeServerId == null && bh['chuyen_xe_local_id'] != null) {
-          final d = await _db.db;
-          final rows = await d.query('chuyen_xe_offline',
-              where: 'local_id = ?',
-              whereArgs: [bh['chuyen_xe_local_id']]);
-          if (rows.isNotEmpty) chuyenXeServerId = rows.first['server_id'] as int?;
-        }
-        if (chuyenXeServerId == null) {
-          errors.add('Bán hàng local_id=${bh['local_id']}: chuyến xe chưa đồng bộ');
-          continue;
-        }
-
-        // Resolve server_id khách hàng
-        int? khachHangServerId = bh['khach_hang_server_id'] as int?;
-        if (khachHangServerId == null && bh['khach_hang_local_id'] != null) {
-          final d = await _db.db;
-          final rows = await d.query('khach_hang_local',
-              where: 'local_id = ?',
-              whereArgs: [bh['khach_hang_local_id']]);
-          if (rows.isNotEmpty) khachHangServerId = rows.first['server_id'] as int?;
-        }
-        if (khachHangServerId == null) {
-          errors.add('Bán hàng local_id=${bh['local_id']}: khách hàng chưa đồng bộ');
-          continue;
-        }
-
-        await _dio.post('/api/chuyen-xe/$chuyenXeServerId/ban-hang', data: {
-          'khachHangId': khachHangServerId,
-          'matHangId': bh['mat_hang_id'],
-          'soLuong': bh['so_luong'],
-          'donGia': bh['don_gia'],
-          'soVoBan': bh['so_vo_ban'],
-          'soVoThu': bh['so_vo_thu'],
-          'ghiChu': bh['ghi_chu'],
-          // Giờ điện thoại lúc bán (lưu offline) → gửi lên để BE không dùng giờ hệ thống
-          if (bh['created_at'] != null) 'thoiGianBan': bh['created_at'],
-        });
-        await _db.markBanHangSynced(bh['local_id'] as int);
-        bhCount++;
-      } catch (e) {
-        await _db.markBanHangSyncError(bh['local_id'] as int, e.toString());
-        errors.add('Bán hàng local_id=${bh['local_id']}: $e');
-      }
-    }
-
-    return SyncUploadResult(
-        khCount: khCount, cxCount: cxCount, bhCount: bhCount, errors: errors);
   }
 }

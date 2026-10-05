@@ -8,7 +8,6 @@ import 'package:intl/intl.dart';
 import 'dart:async';
 import '../../../../core/database/local_database.dart';
 import '../../../../core/router/app_routes.dart';
-import '../../../../core/services/connectivity_service.dart';
 import '../../../../core/services/sync_service.dart';
 import '../../../chuyen_xe/data/repositories/chuyen_xe_repository.dart';
 import '../../data/models/chuyen_xe_model.dart';
@@ -96,11 +95,8 @@ class _NoVoRow {
 // ─── Screen ──────────────────────────────────────────────────────────────────
 
 class NhapBanHangScreen extends ConsumerStatefulWidget {
-  /// Server ID chuyến xe (null khi chuyến tạo offline).
+  /// Server ID chuyến xe.
   final int? chuyenXeServerId;
-
-  /// Local ID chuyến xe (khi chuyến tạo offline, chưa sync).
-  final int? chuyenXeLocalId;
 
   /// Phụ xe đã chọn từ màn hình bán hàng (truyền vào để gửi API).
   final int? phuXeId;
@@ -112,7 +108,6 @@ class NhapBanHangScreen extends ConsumerStatefulWidget {
   const NhapBanHangScreen({
     super.key,
     this.chuyenXeServerId,
-    this.chuyenXeLocalId,
     this.phuXeId,
     this.ngayXuat,
   });
@@ -156,7 +151,7 @@ class _NhapBanHangScreenState extends ConsumerState<NhapBanHangScreen> {
   final _tienTruTraTruocCtrl = TextEditingController(text: '');
   int? _selectedTaiKhoanId;
 
-  // Số dư tiền khách đã chuyển trước — chỉ tra được khi online, dùng để hiển thị "Còn lại"
+  // Số dư tiền khách đã chuyển trước — dùng để hiển thị "Còn lại"
   double? _soDuTraTruoc;
   bool _loadingSoDuTraTruoc = false;
 
@@ -263,9 +258,10 @@ class _NhapBanHangScreenState extends ConsumerState<NhapBanHangScreen> {
   }
 
   Future<void> _loadCaches() async {
-    // Kéo giá bán cấu hình cho ngày xuất chuyến (bỏ qua nếu offline — dùng cache cũ)
-    await SyncService.instance
-        .syncGiaBanNgay(widget.ngayXuat ?? DateTime.now());
+    // Kéo giá bán cấu hình cho ngày xuất chuyến (lỗi thì dùng cache đã đồng bộ)
+    await SyncService.instance.syncGiaBanNgay(
+      widget.ngayXuat ?? DateTime.now(),
+    );
     final ncc = await _db.getNhaCungCapList();
     final tk = await _db.getTaiKhoanList();
     final mh = await _db.getMatHangList();
@@ -280,14 +276,12 @@ class _NhapBanHangScreenState extends ConsumerState<NhapBanHangScreen> {
     }
   }
 
-  /// Tra số dư tiền khách đã chuyển trước (chỉ tra được khi online); im lặng bỏ qua nếu lỗi/offline.
+  /// Tra số dư tiền khách đã chuyển trước; im lặng bỏ qua nếu lỗi.
   Future<void> _loadSoDuTraTruoc() async {
     final khServerId = _selectedKhachHang?['server_id'] as int?;
     if (khServerId == null) return;
     setState(() => _loadingSoDuTraTruoc = true);
     try {
-      final online = await ConnectivityService.instance.checkOnline();
-      if (!online) return;
       final soDu = await _repo.getSoDuTraTruoc(khServerId);
       if (mounted) setState(() => _soDuTraTruoc = soDu);
     } catch (_) {
@@ -423,192 +417,122 @@ class _NhapBanHangScreenState extends ConsumerState<NhapBanHangScreen> {
       return;
     }
 
+    final khServerId = _selectedKhachHang!['server_id'] as int?;
+    if (widget.chuyenXeServerId == null || khServerId == null) {
+      _showError(
+        'Thiếu thông tin chuyến xe hoặc khách hàng, vui lòng tải lại.',
+      );
+      return;
+    }
+
     setState(() => _saving = true);
 
-    final khServerId = _selectedKhachHang!['server_id'] as int?;
-    final khLocalId = _selectedKhachHang!['local_id'] as int?;
-
     try {
-      final online = await ConnectivityService.instance.checkOnline();
-      final hasServerId = widget.chuyenXeServerId != null;
-
-      if (online && hasServerId && khServerId != null) {
-        final xacNhanId = await _repo.nhapKhachHang(widget.chuyenXeServerId!, {
-          'khachHangId': khServerId,
-          'chiTiet': validRows
-              .map(
-                (r) => {
-                  'matHangId': r.matHangId,
-                  'soLuong': r.soLuong,
-                  'donGia': r.donGia,
-                  'soVoBan': r.soVoBan,
-                  'soVoThu': r.soVoThu,
-                },
+      final xacNhanId = await _repo.nhapKhachHang(widget.chuyenXeServerId!, {
+        'khachHangId': khServerId,
+        'chiTiet': validRows
+            .map(
+              (r) => {
+                'matHangId': r.matHangId,
+                'soLuong': r.soLuong,
+                'donGia': r.donGia,
+                'soVoBan': r.soVoBan,
+                'soVoThu': r.soVoThu,
+              },
+            )
+            .toList(),
+        'gasDu': _gasDuRows
+            .where((r) => r.matHangId != null && r.soKg > 0 && r.tongTien > 0)
+            .map(
+              (r) => {
+                'matHangId': r.matHangId,
+                'soKg': r.soKg,
+                'donGia': r.donGia, // computed: tongTien / soKg
+              },
+            )
+            .toList(),
+        'noVo': _noVoRows
+            .where((r) => r.matHangId != null && r.soLuong > 0)
+            .map((r) => {'matHangId': r.matHangId, 'soLuong': r.soLuong})
+            .toList(),
+        'tienMat': _tienMat,
+        'tienCK': _tienCK,
+        'dieuChinhTien': _dieuChinhTien,
+        'tienChenhLechVo': _tienChenhLechVo,
+        'tienTruTraTruoc': _tienTruTraTruoc,
+        // Thời gian bán lấy từ điện thoại (giờ VN) để lưu đúng mốc thời gian vào DB
+        'thoiGianBan': DateTime.now().toIso8601String(),
+        if (_selectedTaiKhoanId != null) 'taiKhoanCKId': _selectedTaiKhoanId,
+        if (widget.phuXeId != null) 'phuXeId': widget.phuXeId,
+        'ghiChu': _ghiChuCtrl.text.trim().isEmpty
+            ? null
+            : _ghiChuCtrl.text.trim(),
+      });
+      if (mounted) {
+        // Redirect sang xác nhận khách hàng
+        // Tim thong tin tai khoan nhan chuyen khoan (neu co chon)
+        final selectedTk = _selectedTaiKhoanId != null
+            ? _taiKhoanList.firstWhere(
+                (tk) => tk['server_id'] == _selectedTaiKhoanId,
+                orElse: () => <String, dynamic>{},
               )
-              .toList(),
-          'gasDu': _gasDuRows
-              .where((r) => r.matHangId != null && r.soKg > 0 && r.tongTien > 0)
-              .map(
-                (r) => {
-                  'matHangId': r.matHangId,
-                  'soKg': r.soKg,
-                  'donGia': r.donGia, // computed: tongTien / soKg
-                },
-              )
-              .toList(),
-          'noVo': _noVoRows
-              .where((r) => r.matHangId != null && r.soLuong > 0)
-              .map((r) => {'matHangId': r.matHangId, 'soLuong': r.soLuong})
-              .toList(),
-          'tienMat': _tienMat,
-          'tienCK': _tienCK,
-          'dieuChinhTien': _dieuChinhTien,
-          'tienChenhLechVo': _tienChenhLechVo,
-          'tienTruTraTruoc': _tienTruTraTruoc,
-          // Thời gian bán lấy từ điện thoại (giờ VN) để lưu đúng mốc thời gian vào DB
-          'thoiGianBan': DateTime.now().toIso8601String(),
-          if (_selectedTaiKhoanId != null) 'taiKhoanCKId': _selectedTaiKhoanId,
-          if (widget.phuXeId != null) 'phuXeId': widget.phuXeId,
-          'ghiChu': _ghiChuCtrl.text.trim().isEmpty
-              ? null
-              : _ghiChuCtrl.text.trim(),
-        });
-        if (mounted) {
-          // Redirect sang xác nhận khách hàng
-          // Tim thong tin tai khoan nhan chuyen khoan (neu co chon)
-          final selectedTk = _selectedTaiKhoanId != null
-              ? _taiKhoanList.firstWhere(
-                  (tk) => tk['server_id'] == _selectedTaiKhoanId,
-                  orElse: () => <String, dynamic>{},
+            : <String, dynamic>{};
+        context.pushReplacement(
+          '/xac-nhan/$xacNhanId',
+          extra: {
+            'chuyenXeId': widget.chuyenXeServerId,
+            'tenKhachHang': _selectedKhachHang!['ten_khach_hang'] as String?,
+            'tienMat': _tienMat,
+            'tienCK': _tienCK,
+            'dieuChinhTien': _dieuChinhTien,
+            'tienChenhLechVo': _tienChenhLechVo,
+            'conLai': _conLai,
+            'ghiChu': _ghiChuCtrl.text.trim().isEmpty
+                ? null
+                : _ghiChuCtrl.text.trim(),
+            'tenTaiKhoan': selectedTk['ten_tai_khoan'] as String?,
+            'soTaiKhoan': selectedTk['so_tai_khoan'] as String?,
+            'tenNganHang': selectedTk['ngan_hang'] as String?,
+            'noVoList': _noVoRows
+                .where((r) => r.matHangId != null && r.soLuong > 0)
+                .map(
+                  (r) => BanHangNoVoModel(
+                    id: 0,
+                    khachHangId: khServerId,
+                    matHangId: r.matHangId!,
+                    maMatHang: r.maMatHang,
+                    tenMatHang: r.tenMatHang,
+                    maNhaCungCap: r.maNhaCungCap,
+                    tenNhaCungCap: r.tenNhaCungCap,
+                    soLuong: r.soLuong,
+                    createdAt: DateTime.now(),
+                  ),
                 )
-              : <String, dynamic>{};
-          context.pushReplacement(
-            '/xac-nhan/$xacNhanId',
-            extra: {
-              'chuyenXeId': widget.chuyenXeServerId,
-              'tenKhachHang': _selectedKhachHang!['ten_khach_hang'] as String?,
-              'tienMat': _tienMat,
-              'tienCK': _tienCK,
-              'dieuChinhTien': _dieuChinhTien,
-              'tienChenhLechVo': _tienChenhLechVo,
-              'conLai': _conLai,
-              'ghiChu': _ghiChuCtrl.text.trim().isEmpty
-                  ? null
-                  : _ghiChuCtrl.text.trim(),
-              'tenTaiKhoan': selectedTk['ten_tai_khoan'] as String?,
-              'soTaiKhoan': selectedTk['so_tai_khoan'] as String?,
-              'tenNganHang': selectedTk['ngan_hang'] as String?,
-              'noVoList': _noVoRows
-                  .where((r) => r.matHangId != null && r.soLuong > 0)
-                  .map(
-                    (r) => BanHangNoVoModel(
-                      id: 0,
-                      khachHangId: khServerId,
-                      matHangId: r.matHangId!,
-                      maMatHang: r.maMatHang,
-                      tenMatHang: r.tenMatHang,
-                      maNhaCungCap: r.maNhaCungCap,
-                      tenNhaCungCap: r.tenNhaCungCap,
-                      soLuong: r.soLuong,
-                      createdAt: DateTime.now(),
-                    ),
-                  )
-                  .toList(),
-              'banHangList': validRows
-                  .map(
-                    (r) => BanHangKhachHangModel(
-                      id: 0, // Không có ID trước khi lưu
-                      khachHangId: khServerId,
-                      tenKhachHang:
-                          _selectedKhachHang!['ten_khach_hang'] as String?,
-                      matHangId: r.matHangId!,
-                      maMatHang: r.maMatHang,
-                      tenMatHang: r.tenMatHang,
-                      maNhaCungCap: r.maNhaCungCap,
-                      tenNhaCungCap: r.tenNhaCungCap,
-                      donViTinh: r.donViTinh,
-                      soLuong: r.soLuong,
-                      donGia: r.donGia,
-                      thanhTien: r.thanhTien,
-                      soVoBan: r.soVoBan,
-                      soVoThu: r.soVoThu,
-                      createdAt: DateTime.now(),
-                    ),
-                  )
-                  .toList(),
-            },
-          );
-        }
-      } else {
-        final confirm = await _showOfflineDialog();
-        if (confirm == true && mounted) {
-          bool isFirstRow = true;
-          final int? phuXeIdOffline = widget.phuXeId;
-          for (final r in validRows) {
-            await _db.insertBanHangOffline({
-              'chuyen_xe_server_id': widget.chuyenXeServerId,
-              'chuyen_xe_local_id': widget.chuyenXeLocalId,
-              'khach_hang_server_id': khServerId,
-              'khach_hang_local_id': khLocalId,
-              'mat_hang_id': r.matHangId,
-              'so_luong': r.soLuong,
-              'don_gia': r.donGia,
-              'thanh_tien': r.thanhTien,
-              'so_vo_ban': r.soVoBan,
-              'so_vo_thu': r.soVoThu,
-              'tien_mat': isFirstRow ? _tienMat : 0.0,
-              'tien_ck': isFirstRow ? _tienCK : 0.0,
-              'dieu_chinh_tien': isFirstRow ? _dieuChinhTien : 0.0,
-              'tien_chenh_lech_vo': isFirstRow ? _tienChenhLechVo : 0.0,
-              'tai_khoan_ck_id': isFirstRow ? _selectedTaiKhoanId : null,
-              'phu_xe_id': isFirstRow ? phuXeIdOffline : null,
-              'ghi_chu': isFirstRow && _ghiChuCtrl.text.trim().isNotEmpty
-                  ? _ghiChuCtrl.text.trim()
-                  : null,
-              'created_at': DateTime.now().toIso8601String(),
-              'is_synced': 0,
-            });
-            isFirstRow = false;
-          }
-          for (final r in _gasDuRows.where(
-            (g) => g.matHangId != null && g.soKg > 0 && g.tongTien > 0,
-          )) {
-            await _db.insertBanHangGasDuLocal({
-              'chuyen_xe_server_id': widget.chuyenXeServerId,
-              'chuyen_xe_local_id': widget.chuyenXeLocalId,
-              'khach_hang_server_id': khServerId,
-              'khach_hang_local_id': khLocalId,
-              'mat_hang_id': r.matHangId,
-              'so_kg': r.soKg,
-              'don_gia': r.donGia,
-              'thanh_tien': r.thanhTien,
-              'created_at': DateTime.now().toIso8601String(),
-              'is_synced': 0,
-            });
-          }
-          for (final r in _noVoRows.where(
-            (n) => n.matHangId != null && n.soLuong > 0,
-          )) {
-            await _db.insertBanHangNoVoLocal({
-              'chuyen_xe_server_id': widget.chuyenXeServerId,
-              'chuyen_xe_local_id': widget.chuyenXeLocalId,
-              'khach_hang_server_id': khServerId,
-              'khach_hang_local_id': khLocalId,
-              'mat_hang_id': r.matHangId,
-              'so_luong': r.soLuong,
-              'created_at': DateTime.now().toIso8601String(),
-              'is_synced': 0,
-            });
-          }
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Đã lưu offline. Sẽ đồng bộ khi có mạng.'),
-              ),
-            );
-            context.pop();
-          }
-        }
+                .toList(),
+            'banHangList': validRows
+                .map(
+                  (r) => BanHangKhachHangModel(
+                    id: 0, // Không có ID trước khi lưu
+                    khachHangId: khServerId,
+                    tenKhachHang:
+                        _selectedKhachHang!['ten_khach_hang'] as String?,
+                    matHangId: r.matHangId!,
+                    maMatHang: r.maMatHang,
+                    tenMatHang: r.tenMatHang,
+                    maNhaCungCap: r.maNhaCungCap,
+                    tenNhaCungCap: r.tenNhaCungCap,
+                    donViTinh: r.donViTinh,
+                    soLuong: r.soLuong,
+                    donGia: r.donGia,
+                    thanhTien: r.thanhTien,
+                    soVoBan: r.soVoBan,
+                    soVoThu: r.soVoThu,
+                    createdAt: DateTime.now(),
+                  ),
+                )
+                .toList(),
+          },
+        );
       }
     } catch (e) {
       if (e is DioException) {
@@ -620,26 +544,6 @@ class _NhapBanHangScreenState extends ConsumerState<NhapBanHangScreen> {
       if (mounted) setState(() => _saving = false);
     }
   }
-
-  Future<bool?> _showOfflineDialog() => showDialog<bool>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text('Không có mạng'),
-      content: const Text(
-        'Không thể kết nối server. Bạn có muốn lưu dữ liệu offline và đồng bộ sau không?',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(ctx, false),
-          child: const Text('Huỷ'),
-        ),
-        ElevatedButton(
-          onPressed: () => Navigator.pop(ctx, true),
-          child: const Text('Lưu offline'),
-        ),
-      ],
-    ),
-  );
 
   void _showError(String msg) {
     ScaffoldMessenger.of(
@@ -653,10 +557,12 @@ class _NhapBanHangScreenState extends ConsumerState<NhapBanHangScreen> {
   bool get _hasUnsavedData {
     if (_selectedKhachHang != null) return true;
     if (_gasDuRows.isNotEmpty || _noVoRows.isNotEmpty) return true;
-    if (_saleRows.any((r) =>
-        r.matHangId != null ||
-        r.soLuongCtrl.text.trim() != '1' ||
-        r.donGiaCtrl.text.trim().isNotEmpty)) {
+    if (_saleRows.any(
+      (r) =>
+          r.matHangId != null ||
+          r.soLuongCtrl.text.trim() != '1' ||
+          r.donGiaCtrl.text.trim().isNotEmpty,
+    )) {
       return true;
     }
     if (_tienMatCtrl.text.trim().isNotEmpty ||
@@ -710,98 +616,98 @@ class _NhapBanHangScreenState extends ConsumerState<NhapBanHangScreen> {
         if (await _confirmLeave() && mounted) context.pop();
       },
       child: Scaffold(
-      appBar: AppBar(
-        title: const Text('Nhập bán hàng'),
-        leading: BackButton(
-          onPressed: () async {
-            if (await _confirmLeave() && mounted) context.pop();
-          },
-        ),
-      ),
-      // Bỏ bottom nav (trang chủ / thông báo / cài đặt) để tránh ấn nhầm thoát khi đang nhập bán hàng
-      body: GestureDetector(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // ── Summary bar ──────────────────────────────────────────────────
-              _buildSummaryBar(),
-              const SizedBox(height: 10),
-
-              // ── Khách hàng ───────────────────────────────────────────────────
-              _SectionCard(
-                key: _khachHangSectionKey,
-                title: 'Khách hàng',
-                child: _buildKhachHangSection(),
-              ),
-              const SizedBox(height: 10),
-
-              // ── Chi tiết bán hàng ────────────────────────────────────────────
-              _SectionCard(
-                title: 'Chi tiết bán hàng',
-                child: _buildSaleRowsSection(),
-              ),
-              const SizedBox(height: 10),
-
-              // ── Mua gas dư ───────────────────────────────────────────────────
-              _SectionCard(title: 'Mua gas dư', child: _buildGasDuSection()),
-              const SizedBox(height: 10),
-
-              // ── Nợ vỏ ────────────────────────────────────────────────────────
-              _SectionCard(title: 'Nợ vỏ', child: _buildNoVoSection()),
-              const SizedBox(height: 10),
-
-              // ── Thanh toán ───────────────────────────────────────────────────
-              _SectionCard(
-                key: _thanhToanSectionKey,
-                title: 'Thanh toán',
-                child: _buildThanhToanSection(),
-              ),
-              const SizedBox(height: 10),
-
-              // ── Ghi chú ──────────────────────────────────────────────────────
-              TextField(
-                key: _ghiChuKey,
-                controller: _ghiChuCtrl,
-                maxLines: 2,
-                decoration: const InputDecoration(
-                  labelText: 'Ghi chú',
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 8,
-                  ),
-                ),
-                onTap: () => _ensureVisible(_ghiChuKey),
-              ),
-              const SizedBox(height: 16),
-
-              ElevatedButton.icon(
-                onPressed: _saving ? null : _save,
-                icon: _saving
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.save_rounded),
-                label: Text(_saving ? 'Đang lưu...' : 'Lưu'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF00897B),
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size.fromHeight(46),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
+        appBar: AppBar(
+          title: const Text('Nhập bán hàng'),
+          leading: BackButton(
+            onPressed: () async {
+              if (await _confirmLeave() && mounted) context.pop();
+            },
           ),
         ),
-      ),
+        // Bỏ bottom nav (trang chủ / thông báo / cài đặt) để tránh ấn nhầm thoát khi đang nhập bán hàng
+        body: GestureDetector(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // ── Summary bar ──────────────────────────────────────────────────
+                _buildSummaryBar(),
+                const SizedBox(height: 10),
+
+                // ── Khách hàng ───────────────────────────────────────────────────
+                _SectionCard(
+                  key: _khachHangSectionKey,
+                  title: 'Khách hàng',
+                  child: _buildKhachHangSection(),
+                ),
+                const SizedBox(height: 10),
+
+                // ── Chi tiết bán hàng ────────────────────────────────────────────
+                _SectionCard(
+                  title: 'Chi tiết bán hàng',
+                  child: _buildSaleRowsSection(),
+                ),
+                const SizedBox(height: 10),
+
+                // ── Mua gas dư ───────────────────────────────────────────────────
+                _SectionCard(title: 'Mua gas dư', child: _buildGasDuSection()),
+                const SizedBox(height: 10),
+
+                // ── Nợ vỏ ────────────────────────────────────────────────────────
+                _SectionCard(title: 'Nợ vỏ', child: _buildNoVoSection()),
+                const SizedBox(height: 10),
+
+                // ── Thanh toán ───────────────────────────────────────────────────
+                _SectionCard(
+                  key: _thanhToanSectionKey,
+                  title: 'Thanh toán',
+                  child: _buildThanhToanSection(),
+                ),
+                const SizedBox(height: 10),
+
+                // ── Ghi chú ──────────────────────────────────────────────────────
+                TextField(
+                  key: _ghiChuKey,
+                  controller: _ghiChuCtrl,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: 'Ghi chú',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                  ),
+                  onTap: () => _ensureVisible(_ghiChuKey),
+                ),
+                const SizedBox(height: 16),
+
+                ElevatedButton.icon(
+                  onPressed: _saving ? null : _save,
+                  icon: _saving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.save_rounded),
+                  label: Text(_saving ? 'Đang lưu...' : 'Lưu'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF00897B),
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(46),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -1497,12 +1403,15 @@ class _NhapBanHangScreenState extends ConsumerState<NhapBanHangScreen> {
               helperText: _loadingSoDuTraTruoc
                   ? 'Đang tra số dư...'
                   : _soDuTraTruoc != null
-                      ? 'Còn lại: ${_fmtMoney.format(_soDuTraTruoc)} đ'
-                      : null,
+                  ? 'Còn lại: ${_fmtMoney.format(_soDuTraTruoc)} đ'
+                  : null,
               border: const OutlineInputBorder(),
               isDense: true,
               suffixText: 'đ',
-              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 8,
+              ),
             ),
             onChanged: (_) => setState(() {}),
           ),

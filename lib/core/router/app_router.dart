@@ -36,7 +36,7 @@ import '../../features/tong_quan/presentation/screens/thong_ke_chuyen_xe_screen.
 import '../../features/cai_dat/presentation/screens/cai_dat_screen.dart'; // man hinh cai dat
 import '../../features/cai_dat/presentation/screens/thong_tin_tai_khoan_screen.dart'; // thong tin tai khoan nguoi dung
 import '../../features/cai_dat/presentation/screens/doi_mat_khau_screen.dart'; // doi mat khau
-import '../../features/cai_dat/presentation/screens/dong_bo_screen.dart'; // dong bo du lieu offline
+import '../../features/cai_dat/presentation/screens/dong_bo_screen.dart'; // lam moi cache danh muc
 import '../../features/chuyen_xe/presentation/screens/bat_dau_chuyen_screen.dart'; // bat dau ban hang trong ngay
 import '../../features/chuyen_xe/presentation/screens/tim_kiem_khach_hang_screen.dart'; // tim kiem khach hang
 import '../../features/chuyen_xe/presentation/screens/tim_kiem_phu_xe_screen.dart'; // tim kiem phu xe
@@ -58,10 +58,7 @@ import '../../features/kiem_ke/presentation/screens/kiem_ke_nhap_so_mang_ve_scre
 import '../../features/kiem_ke/presentation/screens/kiem_ke_doi_chieu_screen.dart'; // doi chieu so mang ve
 import '../../features/thong_bao/presentation/providers/thong_bao_provider.dart'; // provider so thong bao chua doc
 import '../providers/user_info_provider.dart'; // thong tin user dang nhap (lay userId)
-import '../database/local_database.dart'; // co so du lieu local (SQLite) cho offline
-import '../providers/sync_provider.dart'; // provider dong bo du lieu len server
 import '../services/background_polling_service.dart'; // dich vu kiem tra thong bao nen
-import '../services/connectivity_service.dart'; // dich vu kiem tra ket noi mang
 import '../services/notification_service.dart'; // dich vu thong bao FCM va local
 import '../services/sync_service.dart'; // dich vu dong bo danh muc tu server
 import 'app_routes.dart'; // hang so chua tat ca cac duong dan route
@@ -256,21 +253,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
-        path: '/ban-hang/offline/:localId/nhap', // route nhap ban hang offline (chuyen xe chi co local id)
-        pageBuilder: (_, state) {
-          final extra = state.extra as Map<String, dynamic>?;
-          return CupertinoPage(
-            key: state.pageKey,
-            child: NhapBanHangScreen(
-              chuyenXeLocalId: int.tryParse(state.pathParameters['localId']!), // id local trong SQLite
-              phuXeId: extra?['phuXeId'] as int?,
-              ngayXuat: extra?['ngayXuat'] as DateTime?, // ngay xuat chuyen -> lay gia cau hinh theo ngay
-            ),
-          );
-        },
-      ),
-      GoRoute(
-        parentNavigatorKey: _rootNavigatorKey,
         path: '/ban-hang/:chuyenXeId/khach-hang/:khachHangId/sua', // route sua ban hang da nhap cho khach hang cu the
         pageBuilder: (_, state) {
           final cxId  = int.tryParse(state.pathParameters['chuyenXeId']  ?? '') ?? 0; // id chuyen xe
@@ -292,7 +274,7 @@ final routerProvider = Provider<GoRouter>((ref) {
               gasDuRows: gasDuRows, // truyen cac dong mua gas du hien tai vao man hinh sua
               noVoRows: noVoRows, // truyen cac dong no vo hien tai vao man hinh sua
               thanhToan: thanhToan, // truyen thong tin thanh toan hien tai vao man hinh sua
-              canEdit: cxId > 0, // chi cho sua neu co server id (khong sua offline record)
+              canEdit: cxId > 0, // chi cho sua khi co id chuyen xe hop le
             ),
           );
         },
@@ -547,59 +529,51 @@ class _MainShell extends ConsumerStatefulWidget {
   ConsumerState<_MainShell> createState() => _MainShellState();
 }
 
-// state cua shell: quan ly tab hien tai, dong bo, ket noi mang, post-login tasks
-class _MainShellState extends ConsumerState<_MainShell> {
+// state cua shell: quan ly tab hien tai, dong bo danh muc khi mo app, post-login tasks
+class _MainShellState extends ConsumerState<_MainShell> with WidgetsBindingObserver {
   int _currentIndex = 0; // chi so tab dang chon (0=Home, 1=ThongBao, 2=CaiDat)
-  bool _syncChecked = false; // co kiem tra dong bo hang ngay hay chua (tranh goi nhieu lan)
+  DateTime? _lastCatalogSync; // thoi diem bat dau dong bo danh muc gan nhat (de throttle)
+  bool _catalogSyncing = false; // dang dong bo thi khong goi chong
+
+  // khoang cach toi thieu giua 2 lan dong bo khi app quay lai foreground
+  static const _resumeSyncInterval = Duration(minutes: 5);
 
   @override
   void initState() {
     super.initState();
-    _runDailySyncIfNeeded(); // kiem tra va dong bo danh muc neu chua dong bo hom nay
-    _listenConnectivity(); // lang nghe thay doi ket noi mang
+    WidgetsBinding.instance.addObserver(this); // nghe vong doi app de dong bo khi quay lai foreground
+    _syncCatalog(force: true); // moi lan mo app deu dong bo lai danh muc
     WidgetsBinding.instance.addPostFrameCallback((_) => _runPostLoginTasks()); // chay sau khi frame dau tien hien thi
   }
 
-  // dong bo danh muc (mat hang, khach hang...) neu chua dong bo hom nay va co mang
-  Future<void> _runDailySyncIfNeeded() async {
-    if (_syncChecked) return; // da kiem tra roi, bo qua
-    _syncChecked = true; // danh dau da kiem tra
-    try {
-      final should = await SyncService.instance.shouldSyncToday(); // kiem tra da dong bo hom nay chua
-      if (!should) return; // da dong bo roi, khong can lam gi them
-      final online = await ConnectivityService.instance.checkOnline(); // kiem tra co ket noi mang khong
-      if (!online) return; // khong co mang, bo qua
-      final result = await SyncService.instance.syncCatalog(); // thuc hien dong bo danh muc tu server
-      // Chi danh dau da sync khi co it nhat 1 loai du lieu duoc tai ve thanh cong
-      if (result.totalSynced > 0) {
-        await SyncService.instance.markSyncedToday(); // luu timestamp dong bo hom nay
-      }
-      if (result.hasNewItems && mounted) { // neu co du lieu moi thi hien thong bao
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(result.summary),
-          duration: const Duration(seconds: 4),
-        ));
-      }
-    } catch (_) {} // bo qua loi dong bo, khong can thong bao nguoi dung
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
-  // lang nghe thay doi ket noi mang, neu vua co mang thi nhac dong bo du lieu dang cho
-  void _listenConnectivity() {
-    ConnectivityService.instance.onChanged.listen((online) async {
-      if (!online || !mounted) return; // mat mang hoac widget bi destroy thi bo qua
-      final pending = await LocalDatabase.instance.getPendingCount(); // dem so ban ghi chua dong bo
-      if (pending > 0 && mounted) { // neu co ban ghi cho thi hien thong bao voi nut dong bo
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Có $pending bản ghi chưa đồng bộ.'),
-          action: SnackBarAction(
-            label: 'Đồng bộ',
-            onPressed: () =>
-                ref.read(syncNotifierProvider.notifier).uploadPending(), // goi dong bo ngay khi bam
-          ),
-          duration: const Duration(seconds: 6),
-        ));
-      }
-    });
+  // app quay lai foreground -> dong bo lai danh muc (co throttle 5 phut)
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _syncCatalog();
+  }
+
+  // dong bo cache danh muc (mat hang, khach hang, xe...) tu server ve SQLite.
+  // force=true: bo qua throttle (dung khi mo app). Loi chi log, khong chan nguoi dung.
+  Future<void> _syncCatalog({bool force = false}) async {
+    if (_catalogSyncing) return;
+    final last = _lastCatalogSync;
+    if (!force && last != null && DateTime.now().difference(last) < _resumeSyncInterval) return;
+    _catalogSyncing = true;
+    _lastCatalogSync = DateTime.now();
+    try {
+      final result = await SyncService.instance.syncCatalog(); // thuc hien dong bo danh muc tu server
+      debugPrint('[SYNC] ${result.summary}');
+    } catch (e) {
+      debugPrint('[SYNC] LỖI dong bo danh muc: $e');
+    } finally {
+      _catalogSyncing = false;
+    }
   }
 
   // chay cac tac vu nen sau khi dang nhap thanh cong: dang ky FCM, background polling, kiem tra thong bao

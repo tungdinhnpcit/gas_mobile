@@ -25,6 +25,9 @@ class LocalDevConfig {
   /// LAN: IP máy dev trong mạng nội bộ (đổi cho khớp IP hiện tại của máy dev).
   static const String lanApiUrl = 'http://192.168.1.9:8202/apimanager';
 
+  /// Emulator Android: 10.0.2.2 là localhost của máy host.
+  static const String emulatorApiUrl = 'http://10.0.2.2:8202/apimanager';
+
   // ----- Các giá trị dẫn xuất (không cần sửa) -----
 
   /// URL local (usb/lan) mà DeviceConfig dùng cho real device / iOS khi debug.

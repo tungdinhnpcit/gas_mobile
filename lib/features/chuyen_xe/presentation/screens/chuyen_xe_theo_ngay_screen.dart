@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-import '../../../../core/database/local_database.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/widgets/app_bottom_nav_bar.dart';
 import '../../data/models/chuyen_xe_model.dart';
@@ -42,7 +41,6 @@ class ChuyenXeTheoNgayScreen extends ConsumerStatefulWidget {
 class _ChuyenXeTheoNgayScreenState
     extends ConsumerState<ChuyenXeTheoNgayScreen> {
   final _repo = ChuyenXeRepository();
-  final _db = LocalDatabase.instance;
 
   AsyncValue<List<ChuyenXeModel>> _listState = const AsyncValue.loading();
   bool _creatingTrip = false;
@@ -107,21 +105,6 @@ class _ChuyenXeTheoNgayScreenState
         xeId: args.xeId,
         nhanVienId: args.nhanVienId,
       );
-
-      // Lưu cache local để dùng offline sau
-      final ngayStr0 = DateFormat('yyyy-MM-dd').format(args.ngayXuat);
-      await _db.insertChuyenXeOffline({
-        'server_id': trip.id,
-        'ma_chuyen_xe': trip.maChuyenXe,
-        'ngay_xuat': ngayStr0,
-        'xe_id': args.xeId,
-        'bien_so_xe': args.bienSoXe,
-        'nhan_vien_id': args.nhanVienId,
-        'trang_thai': 'dang-giao',
-        'loai': 'mobile',
-        'is_synced': 1,
-        'created_at': DateTime.now().toIso8601String(),
-      });
 
       if (mounted) context.push(AppRoutes.chuyenXeDetail(trip.id.toString()));
     } catch (e) {
