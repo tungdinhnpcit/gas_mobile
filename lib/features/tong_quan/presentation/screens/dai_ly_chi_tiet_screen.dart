@@ -385,7 +385,7 @@ class _XacNhanThumbnail extends StatelessWidget {
 
   // build URL đầy đủ: bỏ suffix /apimanager vì static file serve từ root server
   String get _fullUrl =>
-      AppConstants.resolvedApiUrl.replaceFirst(RegExp(r'/apimanager$'), '') + url;
+      AppConstants.staticBaseUrl + url;
 
   @override
   Widget build(BuildContext context) {

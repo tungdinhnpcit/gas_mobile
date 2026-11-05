@@ -300,7 +300,7 @@ class _PheDuyetChuyenXeScreenState extends ConsumerState<PheDuyetChuyenXeScreen>
   // UI hiển thị sau khi đã phê duyệt thành công — cho phép chụp/chọn/xóa ảnh bản kê tại chỗ
   Widget _buildSauPheDuyet(ChuyenXeModel cx) {
     final anhBanKe = cx.ketThuc?.anhBanKe ?? [];
-    final baseUrl = AppConstants.resolvedApiUrl.replaceFirst(RegExp(r'/apimanager$'), '');
+    final baseUrl = AppConstants.staticBaseUrl;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),

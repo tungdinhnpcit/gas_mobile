@@ -22,7 +22,7 @@ class _ThongTinTaiKhoanScreenState extends ConsumerState<ThongTinTaiKhoanScreen>
   bool _uploading = false;
 
   static String get _staticBaseUrl =>
-      AppConstants.resolvedApiUrl.replaceFirst(RegExp(r'/apimanager$'), '');
+      AppConstants.staticBaseUrl;
 
   // nhanVienId > 0 → upload vào nhân viên (đồng bộ web); ngược lại (admin/không có NV) → avatar cấp user
   Future<void> _pickAndUpload(int nhanVienId) async {

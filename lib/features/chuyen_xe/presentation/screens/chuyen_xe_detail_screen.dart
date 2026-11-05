@@ -994,7 +994,7 @@ class _TabBanHangState extends ConsumerState<_TabBanHang> {
   /// Mo dialog xem anh bien lai hoac chu ky xac nhan cua khach hang
   // Xem ảnh xác nhận phóng to theo url cụ thể (biên lai hoặc chữ ký) — hỗ trợ 2 luồng song song
   void _xemAnhFull(String relativeUrl, {required bool isKy, DateTime? ngayXacNhan}) {
-    final baseUrl = AppConstants.resolvedApiUrl.replaceFirst(RegExp(r'/apimanager$'), '');
+    final baseUrl = AppConstants.staticBaseUrl;
     final imageUrl = '$baseUrl$relativeUrl';
     final title = isKy ? 'Chữ ký xác nhận' : 'Ảnh biên lai';
     final iconData = isKy ? Icons.draw_outlined : Icons.image_outlined;
@@ -1097,7 +1097,7 @@ class _TabBanHangState extends ConsumerState<_TabBanHang> {
   // Một thumbnail ảnh xác nhận — bấm để phóng to
   Widget _xacNhanThumb(String relativeUrl,
       {required String label, required IconData icon, required bool isKy, DateTime? ngay}) {
-    final baseUrl = AppConstants.resolvedApiUrl.replaceFirst(RegExp(r'/apimanager$'), '');
+    final baseUrl = AppConstants.staticBaseUrl;
     return Padding(
       padding: const EdgeInsets.only(right: 12),
       child: Column(
@@ -2132,7 +2132,7 @@ class _TabAnh extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final baseUrl =
-        AppConstants.resolvedApiUrl.replaceFirst(RegExp(r'/apimanager$'), '');
+        AppConstants.staticBaseUrl;
     final canUpload = !uploading;
 
     return SingleChildScrollView(
