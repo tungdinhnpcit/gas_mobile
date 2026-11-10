@@ -30,6 +30,8 @@ DioException _wafException(RequestOptions opts, String body) {
   final msg = supportId.isNotEmpty
       ? 'Yêu cầu bị tường lửa (F5 WAF) chặn. Mã hỗ trợ: $supportId'
       : 'Yêu cầu bị tường lửa (F5 WAF) chặn. Vui lòng liên hệ quản trị viên.';
+  // Báo cho UI hiện popup cảnh báo chung (đăng ký ở app_router.dart)
+  ApiClient._onWafBlocked?.call(msg, supportId);
   return DioException(
     requestOptions: opts,
     type: DioExceptionType.badResponse,
@@ -49,6 +51,11 @@ class ApiClient {
   // Callback được set bởi app_router khi cần navigate về login
   static void Function(String route)? _navigateToLogin;
   static void setNavigateToLogin(void Function(String) cb) => _navigateToLogin = cb;
+
+  // Callback được set bởi app_router để hiện popup khi request bị F5 WAF chặn
+  static void Function(String message, String supportId)? _onWafBlocked;
+  static void setOnWafBlocked(void Function(String message, String supportId) cb) =>
+      _onWafBlocked = cb;
 
   ApiClient._() {
     _dio = Dio(BaseOptions(

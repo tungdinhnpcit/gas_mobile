@@ -1,7 +1,7 @@
 // lib/core/router/app_router.dart
 import 'package:flutter/cupertino.dart' show CupertinoPage; // CupertinoPage cho animation swipe-back kieu iOS
 import 'package:flutter/material.dart'; // thu vien UI chinh cua Flutter
-import 'package:flutter/services.dart' show SystemUiOverlayStyle; // dieu chinh mau status bar
+import 'package:flutter/services.dart' show SystemUiOverlayStyle, Clipboard, ClipboardData; // dieu chinh mau status bar
 import 'package:flutter_riverpod/flutter_riverpod.dart'; // quan ly state toan cuc voi Riverpod
 import 'package:flutter_secure_storage/flutter_secure_storage.dart'; // luu tru an toan (JWT token)
 import 'package:go_router/go_router.dart'; // thu vien dieu huong route
@@ -65,6 +65,67 @@ import 'app_routes.dart'; // hang so chua tat ca cac duong dan route
 
 // key dieu huong navigator goc - dung cho cac man hinh full-screen khong co bottom nav
 final _rootNavigatorKey  = GlobalKey<NavigatorState>();
+
+// Cờ chống mở nhiều popup WAF chồng nhau khi nhiều API bị chặn cùng lúc
+bool _wafDialogShowing = false;
+
+/// Hiện popup cảnh báo request bị tường lửa F5 WAF chặn, kèm mã hỗ trợ để
+/// người dùng gửi cho quản trị viên. Chỉ hiện 1 popup tại một thời điểm.
+void _showWafBlockedDialog(String message, String supportId) {
+  if (_wafDialogShowing) return;
+  _wafDialogShowing = true;
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    final ctx = _rootNavigatorKey.currentContext;
+    if (ctx == null) {
+      _wafDialogShowing = false;
+      return;
+    }
+    showDialog<void>(
+      context: ctx,
+      builder: (dCtx) => AlertDialog(
+        icon: const Icon(Icons.shield_outlined, color: Colors.red, size: 40),
+        title: const Text('Yêu cầu bị chặn'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Yêu cầu của bạn bị tường lửa hệ thống (F5 WAF) chặn. '
+              'Vui lòng gửi mã hỗ trợ dưới đây cho quản trị viên.',
+              textAlign: TextAlign.center,
+            ),
+            if (supportId.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              SelectableText(
+                supportId,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          if (supportId.isNotEmpty)
+            TextButton.icon(
+              icon: const Icon(Icons.copy, size: 18),
+              label: const Text('Sao chép mã'),
+              onPressed: () async {
+                await Clipboard.setData(ClipboardData(text: supportId));
+                if (dCtx.mounted) {
+                  ScaffoldMessenger.maybeOf(dCtx)?.showSnackBar(
+                    const SnackBar(content: Text('Đã sao chép mã hỗ trợ')),
+                  );
+                }
+              },
+            ),
+          FilledButton(
+            onPressed: () => Navigator.of(dCtx).pop(),
+            child: const Text('Đóng'),
+          ),
+        ],
+      ),
+    ).whenComplete(() => _wafDialogShowing = false);
+  });
+}
 // key dieu huong navigator shell - dung cho cac man hinh co bottom nav
 final _shellNavigatorKey = GlobalKey<NavigatorState>();
 // doi tuong doc ghi token an toan (dung de kiem tra dang nhap trong redirect)
@@ -512,6 +573,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     }
   });
   ApiClient.setNavigateToLogin((route) => router.go(route)); // dang ky callback chuyen sang login khi token het han (401)
+  ApiClient.setOnWafBlocked(_showWafBlockedDialog); // hiện popup khi request bị F5 WAF chặn
 
   return router;
 });
