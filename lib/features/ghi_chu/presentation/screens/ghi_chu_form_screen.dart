@@ -53,9 +53,9 @@ class _GhiChuFormScreenState extends ConsumerState<GhiChuFormScreen> {
   Future<void> _copyMatKhau() async {
     await Clipboard.setData(ClipboardData(text: _matKhauCtrl.text));
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Đã sao chép mật khẩu')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Đã sao chép mật khẩu')));
     }
   }
 
@@ -64,14 +64,16 @@ class _GhiChuFormScreenState extends ConsumerState<GhiChuFormScreen> {
 
     setState(() => _saving = true);
     try {
-      await ref.read(ghiChuListProvider.notifier).save(
-        (widget.item ?? const GhiChuModel(tieuDe: '')).copyWith(
-          tieuDe: _tieuDeCtrl.text.trim(),
-          taiKhoan: _taiKhoanCtrl.text.trim(),
-          matKhau: _matKhauCtrl.text,
-          ghiChu: _ghiChuCtrl.text.trim(),
-        ),
-      );
+      await ref
+          .read(ghiChuListProvider.notifier)
+          .save(
+            (widget.item ?? const GhiChuModel(tieuDe: '')).copyWith(
+              tieuDe: _tieuDeCtrl.text.trim(),
+              taiKhoan: _taiKhoanCtrl.text.trim(),
+              matKhau: _matKhauCtrl.text,
+              ghiChu: _ghiChuCtrl.text.trim(),
+            ),
+          );
       if (mounted) context.pop();
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -105,14 +107,16 @@ class _GhiChuFormScreenState extends ConsumerState<GhiChuFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Man hinh nay o root navigator -> Scaffold + AppBar phai tu ve,
-    // khong duoc _MainShell cung cap (xem app_router.dart).
+    // Màn hình này ở root navigator -> Scaffold + AppBar phải tự vẽ,
+    // không được _MainShell cung cấp (xem app_router.dart).
     return Scaffold(
       appBar: AppBar(
         title: Text(_isEdit ? 'Sửa ghi chú' : 'Thêm ghi chú'),
-        leading: BackButton(onPressed: () {
-          if (context.canPop()) context.pop();
-        }),
+        leading: BackButton(
+          onPressed: () {
+            if (context.canPop()) context.pop();
+          },
+        ),
         actions: [
           if (_isEdit)
             IconButton(
@@ -124,78 +128,103 @@ class _GhiChuFormScreenState extends ConsumerState<GhiChuFormScreen> {
       ),
       body: Form(
         key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            TextFormField(
-              controller: _tieuDeCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Tiêu đề *',
-                border: OutlineInputBorder(),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextFormField(
+                controller: _tieuDeCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Tiêu đề *',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (v) => (v == null || v.trim().isEmpty)
+                    ? 'Vui lòng nhập tiêu đề'
+                    : null,
               ),
-              validator: (v) =>
-              (v == null || v.trim().isEmpty) ? 'Vui lòng nhập tiêu đề' : null,
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _taiKhoanCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Tài khoản',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _matKhauCtrl,
-              obscureText: _obscure,
-              decoration: InputDecoration(
-                labelText: 'Mật khẩu',
-                border: const OutlineInputBorder(),
-                suffixIcon: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.copy, size: 20),
-                      tooltip: 'Sao chép',
-                      onPressed: _copyMatKhau,
-                    ),
-                    IconButton(
-                      icon: Icon(
-                        _obscure
-                            ? Icons.visibility_outlined
-                            : Icons.visibility_off_outlined,
-                        size: 20,
-                      ),
-                      tooltip: _obscure ? 'Hiện mật khẩu' : 'Ẩn mật khẩu',
-                      onPressed: () => setState(() => _obscure = !_obscure),
-                    ),
-                  ],
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _taiKhoanCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Tài khoản',
+                  border: OutlineInputBorder(),
                 ),
               ),
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _ghiChuCtrl,
-              maxLines: 4,
-              decoration: const InputDecoration(
-                labelText: 'Ghi chú',
-                border: OutlineInputBorder(),
-                alignLabelWithHint: true,
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _matKhauCtrl,
+                obscureText: _obscure,
+                decoration: InputDecoration(
+                  labelText: 'Mật khẩu',
+                  border: const OutlineInputBorder(),
+                  suffixIcon: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.copy, size: 20),
+                        tooltip: 'Sao chép',
+                        onPressed: _copyMatKhau,
+                      ),
+                      IconButton(
+                        icon: Icon(
+                          _obscure
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                          size: 20,
+                        ),
+                        tooltip: _obscure ? 'Hiện mật khẩu' : 'Ẩn mật khẩu',
+                        onPressed: () => setState(() => _obscure = !_obscure),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(height: 24),
-            FilledButton.icon(
+              const SizedBox(height: 12),
+              // Ô ghi chú chiếm toàn bộ phần trống còn lại, nội dung dài cuộn bên trong ô
+              Expanded(
+                child: TextFormField(
+                  controller: _ghiChuCtrl,
+                  maxLines: null,
+                  minLines: null,
+                  expands: true,
+                  keyboardType: TextInputType.multiline,
+                  textAlignVertical: TextAlignVertical.top,
+                  decoration: const InputDecoration(
+                    labelText: 'Ghi chú',
+                    border: OutlineInputBorder(),
+                    alignLabelWithHint: true,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      // Nút Lưu cố định sát đáy màn hình (nằm trên bàn phím khi bàn phím mở)
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            8,
+            16,
+            16 + MediaQuery.of(context).viewInsets.bottom,
+          ),
+          child: SizedBox(
+            height: 48,
+            width: double.infinity,
+            child: FilledButton.icon(
               onPressed: _saving ? null : _save,
               icon: _saving
                   ? const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
                   : const Icon(Icons.save_outlined),
               label: const Text('Lưu'),
             ),
-          ],
+          ),
         ),
       ),
     );
