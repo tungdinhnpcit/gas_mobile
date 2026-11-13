@@ -62,6 +62,9 @@ import '../services/background_polling_service.dart'; // dich vu kiem tra thong 
 import '../services/notification_service.dart'; // dich vu thong bao FCM va local
 import '../services/sync_service.dart'; // dich vu dong bo danh muc tu server
 import 'app_routes.dart'; // hang so chua tat ca cac duong dan route
+import '../../features/lo_trinh/presentation/screens/lo_trinh_screen.dart'; // ghi lộ trình
+import '../../features/lo_trinh/presentation/screens/lo_trinh_list_screen.dart'; // lịch sử lộ trình
+import '../../features/lo_trinh/presentation/screens/lo_trinh_detail_screen.dart'; // xem lại lộ trình
 
 // key dieu huong navigator goc - dung cho cac man hinh full-screen khong co bottom nav
 final _rootNavigatorKey  = GlobalKey<NavigatorState>();
@@ -155,6 +158,26 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.login, // route /login
         builder: (_, __) => const LoginScreen(), // man hinh dang nhap (thiet ke moi theo Figma)
+      ),
+      // Lộ trình: danh sách + ghi ở root navigator → không hiện bottom tabs.
+      // /lo-trinh/ghi khai báo TRƯỚC /lo-trinh/:id để tránh parse 'ghi' thành id.
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: AppRoutes.loTrinh,
+        pageBuilder: (_, state) => CupertinoPage(key: state.pageKey, child: const LoTrinhListScreen()),
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: AppRoutes.loTrinhGhi,
+        pageBuilder: (_, state) => CupertinoPage(key: state.pageKey, child: const LoTrinhScreen()),
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: '/lo-trinh/:id',
+        pageBuilder: (_, state) => CupertinoPage(
+          key: state.pageKey,
+          child: LoTrinhDetailScreen(loTrinhId: int.parse(state.pathParameters['id']!)),
+        ),
       ),
       // Detail routes tai root navigator -- full-screen, ho tro swipe-back va nut back vat ly
       GoRoute(

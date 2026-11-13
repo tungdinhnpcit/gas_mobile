@@ -17,7 +17,7 @@ class LocalDatabase {
     final dir = await getDatabasesPath();
     return openDatabase(
       join(dir, 'gasmanager.db'),
-      version: 10,
+      version: 11,
       onCreate: _create,
       onUpgrade: _onUpgrade,
     );
@@ -88,10 +88,25 @@ class LocalDatabase {
       // Bỏ khách hàng tạo offline chưa có server_id (không còn cơ chế đồng bộ lên)
       await db.execute('DELETE FROM khach_hang_local WHERE server_id IS NULL');
     }
+    if (oldVersion < 11) await createLoTrinhBuffer(db);
 
   }
 
+  /// Bảng đệm điểm GPS lộ trình chưa đẩy được lên server (mất sóng) — xoá khi đẩy thành công.
+  static Future<void> createLoTrinhBuffer(Database db) => db.execute('''
+        CREATE TABLE IF NOT EXISTS lo_trinh_diem_cho (
+          id           INTEGER PRIMARY KEY AUTOINCREMENT,
+          lo_trinh_id  INTEGER NOT NULL,
+          lat          REAL NOT NULL,
+          lng          REAL NOT NULL,
+          do_chinh_xac REAL,
+          toc_do       REAL,
+          thoi_gian    TEXT NOT NULL
+        )
+      ''');
+
   Future<void> _create(Database db, int version) async {
+    await createLoTrinhBuffer(db);
     await db.execute('''
       CREATE TABLE cache_mat_hang (
         server_id       INTEGER PRIMARY KEY,

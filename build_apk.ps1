@@ -29,7 +29,10 @@ Set-Content -Path $pubspecPath -Value $newContent -Encoding UTF8 -NoNewline
 
 Write-Host "Version: $oldVersion -> $newVersion" -ForegroundColor Cyan
 
+# Tat "Stop" khi goi flutter: PowerShell 5.1 coi canh bao stderr cua Java/Gradle la loi va dung script giua chung
+$ErrorActionPreference = "Continue"
 flutter build apk --release
+$ErrorActionPreference = "Stop"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Build APK that bai (version pubspec.yaml da duoc tang len $newVersion)." -ForegroundColor Red
     exit $LASTEXITCODE

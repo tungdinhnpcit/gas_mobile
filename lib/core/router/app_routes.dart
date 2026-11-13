@@ -3,6 +3,9 @@ class AppRoutes {
   static const String login          = '/login';
   static const String home           = '/';
   static const String chuyenXeList   = '/chuyen-xe';
+  static const String loTrinh        = '/lo-trinh';
+  static const String loTrinhGhi     = '/lo-trinh/ghi';
+  static String loTrinhDetail(int id) => '/lo-trinh/$id';
   static const String thongBaoList   = '/thong-bao';
   static const String lichTuan       = '/lich-tuan';
   static const String chamCong       = '/cham-cong';
