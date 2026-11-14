@@ -88,3 +88,18 @@ final ghiChuPhanLoaiProvider = StateNotifierProvider.autoDispose<GhiChuPhanLoaiN
     AsyncValue<List<GhiChuPhanLoaiModel>>>(
   (ref) => GhiChuPhanLoaiNotifier(ref.watch(ghiChuPhanLoaiRepositoryProvider)),
 );
+
+/// Ghi chú được người khác chia sẻ cho user hiện tại.
+final ghiChuDuocChiaSeProvider = FutureProvider.autoDispose<List<GhiChuModel>>(
+  (ref) => ref.watch(ghiChuRepositoryProvider).getDuocChiaSe(),
+);
+
+/// Danh sách tài khoản cho autocomplete chọn người nhận (tải 1 lần, lọc phía client).
+final ghiChuNguoiDungProvider = FutureProvider.autoDispose<List<GhiChuNguoiDungModel>>(
+  (ref) => ref.watch(ghiChuRepositoryProvider).getNguoiDung(),
+);
+
+/// Người đã được chia sẻ 1 ghi chú.
+final ghiChuChiaSeProvider = FutureProvider.autoDispose.family<List<GhiChuNguoiDungModel>, int>(
+  (ref, id) => ref.watch(ghiChuRepositoryProvider).getChiaSe(id),
+);

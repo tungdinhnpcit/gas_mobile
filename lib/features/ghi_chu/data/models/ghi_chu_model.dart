@@ -28,8 +28,12 @@ class GhiChuModel {
   final List<GhiChuAnhModel> anh;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  final bool laChuSoHuu;      // false = ghi chú được người khác chia sẻ (chỉ xem)
+  final String? tenChuSoHuu;
 
   const GhiChuModel({
+    this.laChuSoHuu = true,
+    this.tenChuSoHuu,
     this.id,
     required this.tieuDe,
     this.taiKhoan = '',
@@ -57,6 +61,8 @@ class GhiChuModel {
             .toList(),
         createdAt: json['createdAt'] != null ? DateTime.tryParse(json['createdAt'] as String) : null,
         updatedAt: json['updatedAt'] != null ? DateTime.tryParse(json['updatedAt'] as String) : null,
+        laChuSoHuu: (json['laChuSoHuu'] as bool?) ?? true,
+        tenChuSoHuu: json['tenChuSoHuu'] as String?,
       );
 
   /// Tạo bản sao; [clearPhanLoai] = true để gỡ phân loại (copyWith không phân biệt null với "không đổi").
@@ -82,5 +88,28 @@ class GhiChuModel {
         anh: anh ?? this.anh,
         createdAt: createdAt,
         updatedAt: updatedAt,
+        laChuSoHuu: laChuSoHuu,
+        tenChuSoHuu: tenChuSoHuu,
+      );
+}
+
+/// Tài khoản có thể nhận chia sẻ (dùng cho autocomplete) hoặc đã được chia sẻ ([createdAt] != null).
+class GhiChuNguoiDungModel {
+  final int userId;
+  final String username;
+  final String? fullName;
+  final DateTime? createdAt;
+
+  const GhiChuNguoiDungModel({required this.userId, required this.username, this.fullName, this.createdAt});
+
+  /// Tên hiển thị: "Họ tên (username)" hoặc username nếu không có họ tên.
+  String get hienThi =>
+      (fullName == null || fullName!.trim().isEmpty) ? username : '$fullName ($username)';
+
+  factory GhiChuNguoiDungModel.fromJson(Map<String, dynamic> json) => GhiChuNguoiDungModel(
+        userId: json['userId'] as int,
+        username: (json['username'] as String?) ?? '',
+        fullName: json['fullName'] as String?,
+        createdAt: json['createdAt'] != null ? DateTime.tryParse(json['createdAt'] as String) : null,
       );
 }

@@ -56,4 +56,39 @@ class GhiChuRepository {
   /// Xoá 1 ảnh đính kèm.
   Future<void> deleteAnh(int id, int anhId) =>
       ApiClient.instance.dio.post('/api/ghi-chu-bao-mat/$id/anh/$anhId/delete');
+
+  /// Ghi chú người khác chia sẻ cho user hiện tại (chỉ xem).
+  Future<List<GhiChuModel>> getDuocChiaSe() async {
+    final res = await ApiClient.instance.dio.get('/api/ghi-chu-bao-mat/duoc-chia-se');
+    return (res.data as List).map((e) => GhiChuModel.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  /// Toàn bộ tài khoản active (trừ chính mình) cho autocomplete chọn người nhận.
+  Future<List<GhiChuNguoiDungModel>> getNguoiDung() async {
+    final res = await ApiClient.instance.dio.get('/api/ghi-chu-bao-mat/nguoi-dung');
+    return (res.data as List).map((e) => GhiChuNguoiDungModel.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  /// Danh sách người đã được chia sẻ 1 ghi chú (chỉ chủ sở hữu gọi được).
+  Future<List<GhiChuNguoiDungModel>> getChiaSe(int id) async {
+    final res = await ApiClient.instance.dio.get('/api/ghi-chu-bao-mat/$id/chia-se');
+    return (res.data as List).map((e) => GhiChuNguoiDungModel.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  /// Chia sẻ 1 ghi chú cho danh sách user, trả số bản ghi chia sẻ mới.
+  Future<int> chiaSe(int id, List<int> userIds) async {
+    final res = await ApiClient.instance.dio.post('/api/ghi-chu-bao-mat/$id/chia-se', data: {'userIds': userIds});
+    return (res.data['soLuongThem'] as int?) ?? 0;
+  }
+
+  /// Chia sẻ nhiều ghi chú cho nhiều user cùng lúc, trả số bản ghi chia sẻ mới.
+  Future<int> chiaSeNhieu(List<int> ghiChuIds, List<int> userIds) async {
+    final res = await ApiClient.instance.dio.post('/api/ghi-chu-bao-mat/chia-se-nhieu',
+        data: {'ghiChuIds': ghiChuIds, 'userIds': userIds});
+    return (res.data['soLuongThem'] as int?) ?? 0;
+  }
+
+  /// Thu hồi chia sẻ (chủ) hoặc tự bỏ ghi chú được chia sẻ (người nhận truyền userId của mình).
+  Future<void> thuHoiChiaSe(int id, int userId) =>
+      ApiClient.instance.dio.post('/api/ghi-chu-bao-mat/$id/chia-se/$userId/delete');
 }

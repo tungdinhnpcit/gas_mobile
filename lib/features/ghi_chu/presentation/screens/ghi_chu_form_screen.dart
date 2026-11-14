@@ -10,6 +10,8 @@ import '../../../../core/constants/app_constants.dart';
 import '../../data/models/ghi_chu_model.dart';
 import '../../data/models/ghi_chu_phan_loai_model.dart';
 import '../providers/ghi_chu_provider.dart';
+import '../../../../core/providers/user_info_provider.dart';
+import '../widgets/chia_se_sheet.dart';
 import '../widgets/phan_loai_dialogs.dart';
 
 /// Màn hình thêm/sửa/xoá 1 ghi chú: phân loại, tài khoản/mật khẩu, nội dung và ảnh đính kèm.
@@ -42,6 +44,7 @@ class _GhiChuFormScreenState extends ConsumerState<GhiChuFormScreen> {
   int _uploading = 0; // số ảnh đang upload
 
   bool get _isEdit => _id != null;
+  bool get _readOnly => widget.item?.laChuSoHuu == false; // ghi chú được chia sẻ → chỉ xem
 
   @override
   void initState() {
@@ -126,6 +129,83 @@ class _GhiChuFormScreenState extends ConsumerState<GhiChuFormScreen> {
         _toast(ghiChuErrorMessage(e));
       }
     }
+  }
+
+  /// Người nhận tự bỏ ghi chú được chia sẻ khỏi danh sách của mình.
+  Future<void> _boChiaSe() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Bỏ ghi chú được chia sẻ'),
+        content: Text('Bỏ "${_tieuDeCtrl.text}" khỏi danh sách của bạn?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Huỷ')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Bỏ', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      final me = await ref.read(userInfoProvider.future);
+      await ref.read(ghiChuRepositoryProvider).thuHoiChiaSe(_id!, me.userId);
+      if (mounted) context.pop();
+    } catch (e) {
+      _toast(ghiChuErrorMessage(e));
+    }
+  }
+
+  Future<void> _copyTaiKhoan() async {
+    await Clipboard.setData(ClipboardData(text: _taiKhoanCtrl.text));
+    _toast('Đã sao chép tài khoản');
+  }
+
+  /// Popup menu trên AppBar: chủ sở hữu (Chia sẻ / Xoá), người nhận (Bỏ khỏi danh sách).
+  Widget _buildMenu(bool busy) {
+    return PopupMenuButton<String>(
+      enabled: !busy,
+      onSelected: (v) {
+        switch (v) {
+          case 'share':
+            showChiaSeSheet(context, _id!, _tieuDeCtrl.text);
+          case 'delete':
+            _confirmDelete();
+          case 'unshare':
+            _boChiaSe();
+        }
+      },
+      itemBuilder: (_) => _readOnly
+          ? const [
+              PopupMenuItem(
+                value: 'unshare',
+                child: ListTile(
+                  leading: Icon(Icons.remove_circle_outline, color: Colors.red),
+                  title: Text('Bỏ khỏi danh sách của tôi', style: TextStyle(color: Colors.red)),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ]
+          : const [
+              PopupMenuItem(
+                value: 'share',
+                child: ListTile(
+                  leading: Icon(Icons.share_outlined),
+                  title: Text('Chia sẻ'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              PopupMenuItem(
+                value: 'delete',
+                child: ListTile(
+                  leading: Icon(Icons.delete_outline, color: Colors.red),
+                  title: Text('Xoá', style: TextStyle(color: Colors.red)),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ],
+    );
   }
 
   /// Chọn nguồn ảnh (camera / thư viện) rồi upload. Ghi chú mới sẽ được lưu trước để có id.
@@ -297,12 +377,12 @@ class _GhiChuFormScreenState extends ConsumerState<GhiChuFormScreen> {
 
   /// Lưới ảnh đính kèm 3 cột + ô "thêm ảnh" + ô loading cho ảnh đang upload.
   Widget _buildAnh() {
-    final canAdd = _anh.length + _uploading < _maxAnh;
+    final canAdd = !_readOnly && _anh.length + _uploading < _maxAnh;
     final tiles = <Widget>[
       for (var i = 0; i < _anh.length; i++)
         GestureDetector(
           onTap: () => _xemAnh(i),
-          onLongPress: () => _xoaAnh(_anh[i]),
+          onLongPress: _readOnly ? null : () => _xoaAnh(_anh[i]),
           child: Stack(
             fit: StackFit.expand,
             children: [
@@ -315,7 +395,7 @@ class _GhiChuFormScreenState extends ConsumerState<GhiChuFormScreen> {
                   errorWidget: (_, __, ___) => const Icon(Icons.broken_image),
                 ),
               ),
-              Positioned(
+              if (!_readOnly) Positioned(
                 top: 2,
                 right: 2,
                 child: InkWell(
@@ -382,19 +462,14 @@ class _GhiChuFormScreenState extends ConsumerState<GhiChuFormScreen> {
     // Màn hình này ở root navigator → Scaffold + AppBar phải tự vẽ (xem app_router.dart).
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isEdit ? 'Sửa ghi chú' : 'Thêm ghi chú'),
+        title: Text(_readOnly ? 'Xem ghi chú' : (_isEdit ? 'Sửa ghi chú' : 'Thêm ghi chú')),
         leading: BackButton(
           onPressed: () {
             if (context.canPop()) context.pop();
           },
         ),
         actions: [
-          if (_isEdit)
-            IconButton(
-              icon: const Icon(Icons.delete_outline),
-              tooltip: 'Xoá ghi chú',
-              onPressed: busy ? null : _confirmDelete,
-            ),
+          if (_isEdit) _buildMenu(busy),
         ],
       ),
       body: Form(
@@ -402,7 +477,22 @@ class _GhiChuFormScreenState extends ConsumerState<GhiChuFormScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            if (_readOnly)
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(children: [
+                  const Icon(Icons.people_outline, color: Colors.blue),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text('Được chia sẻ bởi ${widget.item?.tenChuSoHuu ?? ''} — chỉ xem')),
+                ]),
+              ),
             TextFormField(
+              readOnly: _readOnly,
               controller: _tieuDeCtrl,
               decoration: const InputDecoration(
                 labelText: 'Tiêu đề *',
@@ -411,17 +501,24 @@ class _GhiChuFormScreenState extends ConsumerState<GhiChuFormScreen> {
               validator: (v) => (v == null || v.trim().isEmpty) ? 'Vui lòng nhập tiêu đề' : null,
             ),
             const SizedBox(height: 12),
-            _buildPhanLoai(phanLoais),
-            const SizedBox(height: 12),
+            if (!_readOnly) ...[
+              _buildPhanLoai(phanLoais),
+              const SizedBox(height: 12),
+            ],
             TextFormField(
+              readOnly: _readOnly,
               controller: _taiKhoanCtrl,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Tài khoản',
-                border: OutlineInputBorder(),
+                border: const OutlineInputBorder(),
+                suffixIcon: _readOnly
+                    ? IconButton(icon: const Icon(Icons.copy, size: 20), tooltip: 'Sao chép', onPressed: _copyTaiKhoan)
+                    : null,
               ),
             ),
             const SizedBox(height: 12),
             TextFormField(
+              readOnly: _readOnly,
               controller: _matKhauCtrl,
               obscureText: _obscure,
               decoration: InputDecoration(
@@ -449,6 +546,7 @@ class _GhiChuFormScreenState extends ConsumerState<GhiChuFormScreen> {
             ),
             const SizedBox(height: 12),
             TextFormField(
+              readOnly: _readOnly,
               controller: _ghiChuCtrl,
               minLines: 5,
               maxLines: 15,
@@ -466,7 +564,7 @@ class _GhiChuFormScreenState extends ConsumerState<GhiChuFormScreen> {
         ),
       ),
       // Nút Lưu cố định sát đáy màn hình (nằm trên bàn phím khi bàn phím mở)
-      bottomNavigationBar: SafeArea(
+      bottomNavigationBar: _readOnly ? null : SafeArea(
         child: Padding(
           padding: EdgeInsets.fromLTRB(16, 8, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
           child: SizedBox(
