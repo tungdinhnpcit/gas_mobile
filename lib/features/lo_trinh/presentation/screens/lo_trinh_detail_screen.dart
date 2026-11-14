@@ -9,7 +9,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../data/models/lo_trinh_model.dart';
 import '../providers/lo_trinh_provider.dart';
-import '../widgets/doi_ten_lo_trinh_dialog.dart';
+import '../widgets/anh_lo_trinh_section.dart';
+import '../widgets/hoan_tat_lo_trinh_sheet.dart';
+import '../widgets/lo_trinh_polyline.dart';
 
 /// Xem lại lộ trình trên bản đồ (root navigator): polyline, điểm đầu/cuối,
 /// nút chỉ đường đến điểm kết thúc qua Google Maps.
@@ -27,18 +29,12 @@ class LoTrinhDetailScreen extends ConsumerWidget {
     }
   }
 
-  /// Mở hộp thoại đổi tên, gọi API rồi làm mới chi tiết + danh sách.
-  Future<void> _doiTen(BuildContext context, WidgetRef ref, String? tenHienTai) async {
-    final ten = await showDoiTenLoTrinhDialog(context, tenHienTai: tenHienTai, tieuDe: 'Đổi tên lộ trình');
-    if (ten == null || !context.mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      await ref.read(loTrinhRepositoryProvider).doiTen(loTrinhId, ten);
-      ref.invalidate(loTrinhDetailProvider(loTrinhId));
-      ref.invalidate(loTrinhListProvider);
-      messenger.showSnackBar(const SnackBar(content: Text('Đã lưu tên lộ trình'), backgroundColor: Colors.green));
-    } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text(loiDoiTen(e)), backgroundColor: Colors.red));
+  /// Mở sheet sửa tên / ghi chú / ảnh; sheet tự lưu và làm mới chi tiết + danh sách.
+  Future<void> _suaThongTin(BuildContext context) async {
+    final ok = await showHoanTatLoTrinhSheet(context, loTrinhId, tieuDe: 'Sửa thông tin lộ trình');
+    if (ok == true && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Đã lưu thông tin lộ trình'), backgroundColor: Colors.green));
     }
   }
 
@@ -54,9 +50,9 @@ class LoTrinhDetailScreen extends ConsumerWidget {
         actions: [
           if (async.hasValue)
             IconButton(
-              tooltip: 'Đổi tên',
+              tooltip: 'Sửa thông tin',
               icon: const Icon(Icons.edit),
-              onPressed: () => _doiTen(context, ref, ten),
+              onPressed: () => _suaThongTin(context),
             ),
         ],
         leading: BackButton(onPressed: () {
@@ -90,8 +86,27 @@ class LoTrinhDetailScreen extends ConsumerWidget {
                           urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                           userAgentPackageName: 'com.npc.quan_ly_gas',
                         ),
-                        PolylineLayer(polylines: [
-                          Polyline(points: pts, strokeWidth: 5, color: Colors.blue),
+                        PolylineLayer(polylines: dungPolylineLoTrinh(lt.diem)),
+                        // Ảnh có toạ độ → ghim icon camera, bấm để xem ảnh
+                        MarkerLayer(markers: [
+                          for (final a in lt.anh.where((a) => a.latLng != null))
+                            Marker(
+                              point: a.latLng!,
+                              width: 34,
+                              height: 34,
+                              child: GestureDetector(
+                                onTap: () => xemAnhLoTrinh(context, a),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.orange,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: Colors.white, width: 2),
+                                    boxShadow: const [BoxShadow(blurRadius: 3, color: Colors.black26)],
+                                  ),
+                                  child: const Icon(Icons.photo_camera, color: Colors.white, size: 18),
+                                ),
+                              ),
+                            ),
                         ]),
                         MarkerLayer(markers: [
                           Marker(
@@ -128,6 +143,17 @@ class LoTrinhDetailScreen extends ConsumerWidget {
                       Text(lt.ketThucLuc != null ? 'Kết thúc: ${df.format(lt.ketThucLuc!)}' : 'Đang ghi'),
                       Text('Quãng đường: ${fmtQuangDuong(lt.tongQuangDuongM)} • '
                           'Thời gian: ${fmtThoiLuong(lt.thoiLuong)} • ${lt.diem.length} điểm'),
+                      if (lt.ghiChu?.isNotEmpty == true) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'Ghi chú: ${lt.ghiChu}',
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontStyle: FontStyle.italic),
+                        ),
+                      ],
+                      const SizedBox(height: 8),
+                      AnhLoTrinhSection(loTrinh: lt),
                       const SizedBox(height: 12),
                       SizedBox(
                         width: double.infinity,

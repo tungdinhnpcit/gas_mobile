@@ -53,7 +53,10 @@ class LoTrinhTrackingNotifier extends StateNotifier<LoTrinhTrackingState> {
   LoTrinhTrackingNotifier() : super(const LoTrinhTrackingState());
 
   static const _batchSize = 20;
-  static const _maxDoChinhXacM = 50.0;
+  static const _maxDoChinhXacM = 25.0; // bỏ điểm sai số lớn (phố đông, dưới tán cây)
+  static const _maxTocDoMs = 40.0; // ~144 km/h — vượt mức này coi là điểm "nhảy"
+  static const _tocDoDungYenMs = 1.0; // dưới mức này coi như đang đứng yên
+  static const _distanceFilterM = 8;
   static const _bang = 'lo_trinh_diem_cho';
 
   final _repo = LoTrinhRepository();
@@ -162,7 +165,7 @@ class LoTrinhTrackingNotifier extends StateNotifier<LoTrinhTrackingState> {
     final settings = defaultTargetPlatform == TargetPlatform.android
         ? AndroidSettings(
             accuracy: LocationAccuracy.high,
-            distanceFilter: 15,
+            distanceFilter: _distanceFilterM,
             intervalDuration: const Duration(seconds: 5),
             foregroundNotificationConfig: const ForegroundNotificationConfig(
               notificationTitle: 'Đang ghi lộ trình',
@@ -174,12 +177,12 @@ class LoTrinhTrackingNotifier extends StateNotifier<LoTrinhTrackingState> {
         : defaultTargetPlatform == TargetPlatform.iOS
             ? AppleSettings(
                 accuracy: LocationAccuracy.high,
-                distanceFilter: 15,
+                distanceFilter: _distanceFilterM,
                 allowBackgroundLocationUpdates: true,
                 pauseLocationUpdatesAutomatically: false,
                 showBackgroundLocationIndicator: true,
               )
-            : const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 15);
+            : const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: _distanceFilterM);
 
     _sub = Geolocator.getPositionStream(locationSettings: settings).listen(
       _onViTri,
@@ -196,10 +199,36 @@ class LoTrinhTrackingNotifier extends StateNotifier<LoTrinhTrackingState> {
     _flushTimer = null;
   }
 
-  /// Nhận 1 vị trí mới: lọc điểm kém chính xác, lưu SQLite, cập nhật polyline + quãng đường.
+  /// Số điểm liên tiếp bị loại vì "nhảy" — đủ ngưỡng thì chấp nhận lại, tránh kẹt khi chính điểm trước bị sai.
+  int _soLanNhayLienTiep = 0;
+
+  /// Kiểm tra điểm mới so với điểm hợp lệ trước đó; trả false nếu là nhiễu cần bỏ:
+  /// - Tốc độ suy ra (quãng đường / thời gian) vượt [_maxTocDoMs] → điểm nhảy.
+  /// - Đang đứng yên (tốc độ thấp) mà dịch chuyển nhỏ hơn sai số GPS → trôi tại chỗ.
+  bool _hopLe(Position p) {
+    if (state.diem.isEmpty) return true;
+    final truoc = state.diem.last;
+    final d = Geolocator.distanceBetween(truoc.lat, truoc.lng, p.latitude, p.longitude);
+    final giay = p.timestamp.difference(truoc.thoiGian).inMilliseconds / 1000;
+
+    if (giay > 0 && d / giay > _maxTocDoMs) {
+      _soLanNhayLienTiep++;
+      if (_soLanNhayLienTiep < 3) return false;
+      // 3 điểm liên tiếp cùng "nhảy" → nhiều khả năng điểm trước mới là điểm sai, chấp nhận vị trí mới
+    }
+    _soLanNhayLienTiep = 0;
+
+    final dungYen = p.speed >= 0 && p.speed < _tocDoDungYenMs;
+    if (dungYen && d < p.accuracy) return false;
+    return true;
+  }
+
+  /// Nhận 1 vị trí mới: lọc điểm kém chính xác / nhảy / trôi khi đứng yên, lưu SQLite,
+  /// cập nhật polyline + quãng đường.
   Future<void> _onViTri(Position p) async {
     final lt = state.loTrinh;
     if (lt == null || p.accuracy > _maxDoChinhXacM) return;
+    if (!_hopLe(p)) return;
     final diem = LoTrinhDiemModel(
       lat: p.latitude,
       lng: p.longitude,

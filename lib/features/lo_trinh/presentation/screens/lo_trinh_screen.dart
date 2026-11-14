@@ -12,7 +12,8 @@ import '../../../../core/router/app_routes.dart';
 import '../../data/models/lo_trinh_model.dart';
 import '../../services/lo_trinh_tracking_service.dart';
 import '../providers/lo_trinh_provider.dart';
-import '../widgets/doi_ten_lo_trinh_dialog.dart';
+import '../widgets/hoan_tat_lo_trinh_sheet.dart';
+import '../widgets/lo_trinh_polyline.dart';
 
 /// Màn hình ghi lộ trình (root navigator — có Scaffold/AppBar riêng, không hiện bottom tabs):
 /// bản đồ vị trí hiện tại, polyline đang ghi, nút Bắt đầu / Kết thúc.
@@ -97,23 +98,14 @@ class _LoTrinhScreenState extends ConsumerState<LoTrinhScreen> {
     final id = await ref.read(loTrinhTrackingProvider.notifier).ketThuc();
     if (id == null || !mounted) return;
 
-    // Hỏi đặt tên ngay sau khi kết thúc (bỏ qua được); lỗi đặt tên không chặn luồng
-    final ten = await showDoiTenLoTrinhDialog(context);
-    if (ten != null && ten.isNotEmpty) {
-      try {
-        await ref.read(loTrinhRepositoryProvider).doiTen(id, ten);
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text(loiDoiTen(e)), backgroundColor: Colors.red));
-        }
-      }
-    }
+    // Bước hoàn tất: nhập tên, ghi chú, bổ sung ảnh (bỏ qua được — lộ trình đã được lưu)
+    await showHoanTatLoTrinhSheet(context, id, tieuDe: 'Hoàn tất lộ trình');
     if (!mounted) return;
     ref.invalidate(loTrinhListProvider);
     ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Đã lưu lộ trình'), backgroundColor: Colors.green));
-    _veDanhSach();
+    // Mở chi tiết lộ trình vừa ghi thay cho màn ghi
+    context.pushReplacement(AppRoutes.loTrinhDetail(id));
   }
 
   /// Bấm Huỷ: xác nhận rồi dừng ghi và xoá lộ trình đang ghi, quay về danh sách.
@@ -192,13 +184,7 @@ class _LoTrinhScreenState extends ConsumerState<LoTrinhScreen> {
                     userAgentPackageName: 'com.npc.quan_ly_gas',
                   ),
                   if (st.diem.length >= 2)
-                    PolylineLayer(polylines: [
-                      Polyline(
-                        points: st.diem.map((e) => e.latLng).toList(),
-                        strokeWidth: 5,
-                        color: Colors.blue,
-                      ),
-                    ]),
+                    PolylineLayer(polylines: dungPolylineLoTrinh(st.diem)),
                   MarkerLayer(markers: [
                     if (st.diem.isNotEmpty)
                       Marker(
