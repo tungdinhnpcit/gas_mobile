@@ -10,6 +10,8 @@ import '../../features/ghi_chu/data/models/ghi_chu_model.dart';
 import '../../features/ghi_chu/presentation/screens/ghi_chu_form_screen.dart';
 import '../../features/ghi_chu/presentation/screens/ghi_chu_list_screen.dart';
 import '../../features/ghi_chu/presentation/screens/ghi_chu_phan_loai_screen.dart';
+import '../../features/ghi_chu/data/models/ghi_chu_phan_loai_model.dart';
+import '../../features/ghi_chu/presentation/screens/gan_ghi_chu_phan_loai_screen.dart';
 import '../../features/than_so_hoc/presentation/screens/than_so_hoc_screen.dart'; // man hinh than so hoc
 import '../network/api_client.dart'; // client goi API, xu ly redirect khi het han token
 import '../../features/auth/presentation/screens/login_screen.dart'; // man hinh dang nhap (thiet ke moi theo Figma)
@@ -162,6 +164,14 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (_, state) => CupertinoPage(
           key: state.pageKey,
           child: const GhiChuPhanLoaiScreen(),
+        ),
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: AppRoutes.ganGhiChuPhanLoai, // tick chon ghi chu cho 1 loai
+        pageBuilder: (_, state) => CupertinoPage(
+          key: state.pageKey,
+          child: GanGhiChuPhanLoaiScreen(loai: state.extra as GhiChuPhanLoaiModel),
         ),
       ),
       GoRoute(

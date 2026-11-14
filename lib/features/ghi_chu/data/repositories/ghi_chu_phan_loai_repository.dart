@@ -25,6 +25,10 @@ class GhiChuPhanLoaiRepository {
   Future<void> sapXep(List<int> ids) =>
       ApiClient.instance.dio.post('/api/ghi-chu-phan-loai/sap-xep', data: {'ids': ids});
 
+  /// Gán hàng loạt: [ghiChuIds] thuộc loại [id]; ghi chú đang thuộc loại này mà không có trong danh sách bị gỡ.
+  Future<void> ganGhiChu(int id, List<int> ghiChuIds) =>
+      ApiClient.instance.dio.post('/api/ghi-chu-phan-loai/$id/gan-ghi-chu', data: {'ids': ghiChuIds});
+
   /// Xoá phân loại — ghi chú thuộc loại này chuyển về "không phân loại".
   Future<void> delete(int id) =>
       ApiClient.instance.dio.post('/api/ghi-chu-phan-loai/$id/delete');

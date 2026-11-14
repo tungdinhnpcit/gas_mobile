@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/router/app_routes.dart';
 import '../../../../core/utils/vietnamese_text.dart';
 import '../../data/models/ghi_chu_phan_loai_model.dart';
 import '../providers/ghi_chu_provider.dart';
@@ -76,7 +77,7 @@ class _GhiChuPhanLoaiScreenState extends ConsumerState<GhiChuPhanLoaiScreen> {
         onTap: _sapXep
             ? null
             : widget.embedded
-                ? () => showPhanLoaiEditDialog(context, ref, item: p)
+                ? () => context.push(AppRoutes.ganGhiChuPhanLoai, extra: p)
                 : () => context.pop(p.id),
         trailing: _sapXep
             ? ReorderableDragStartListener(index: index, child: const Icon(Icons.drag_handle))
