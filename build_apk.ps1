@@ -31,7 +31,10 @@ Write-Host "Version: $oldVersion -> $newVersion" -ForegroundColor Cyan
 
 # Tat "Stop" khi goi flutter: PowerShell 5.1 coi canh bao stderr cua Java/Gradle la loi va dung script giua chung
 $ErrorActionPreference = "Continue"
+# Build tai thu muc chua script (app), tranh loi khi goi script tu thu muc khac
+Push-Location $PSScriptRoot
 flutter build apk --release
+Pop-Location
 $ErrorActionPreference = "Stop"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Build APK that bai (version pubspec.yaml da duoc tang len $newVersion)." -ForegroundColor Red
