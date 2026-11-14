@@ -9,7 +9,6 @@ import '../../../../core/utils/vietnamese_text.dart';
 import '../../data/models/ghi_chu_model.dart';
 import '../../data/models/ghi_chu_phan_loai_model.dart';
 import '../providers/ghi_chu_provider.dart';
-import '../widgets/phan_loai_dialogs.dart';
 
 /// Màn danh sách "Ghi chú bảo mật" — lọc theo phân loại (chip), tìm kiếm tiếng Việt không dấu
 /// theo tiêu đề/tài khoản/ghi chú. Không hiển thị mật khẩu trong danh sách.
@@ -73,12 +72,14 @@ class _GhiChuListScreenState extends ConsumerState<GhiChuListScreen> {
     }
   }
 
-  /// Mở bottom sheet quản lý phân loại; nếu phân loại đang lọc bị xoá thì về "Tất cả".
+  /// Mở màn danh mục loại ghi chú; chọn 1 loại ở đó → lọc theo loại; loại đang lọc bị xoá → về "Tất cả".
   Future<void> _quanLyPhanLoai() async {
-    await showQuanLyPhanLoaiSheet(context);
+    final chon = await context.push<int>(AppRoutes.ghiChuPhanLoai);
     if (!mounted) return;
     final ds = ref.read(ghiChuPhanLoaiProvider).valueOrNull ?? const <GhiChuPhanLoaiModel>[];
-    if (_phanLoaiId != null && !ds.any((p) => p.id == _phanLoaiId)) {
+    if (chon != null) {
+      _selectPhanLoai(chon);
+    } else if (_phanLoaiId != null && !ds.any((p) => p.id == _phanLoaiId)) {
       _selectPhanLoai(null);
     } else {
       ref.read(ghiChuListProvider.notifier).load();

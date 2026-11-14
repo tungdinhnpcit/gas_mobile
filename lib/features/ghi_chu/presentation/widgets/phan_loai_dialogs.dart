@@ -97,113 +97,33 @@ Future<GhiChuPhanLoaiModel?> showPhanLoaiEditDialog(
   );
 }
 
-/// Bottom sheet quản lý phân loại: danh sách + thêm/sửa/xoá.
-Future<void> showQuanLyPhanLoaiSheet(BuildContext context) {
-  return showModalBottomSheet<void>(
+/// Xác nhận rồi xoá phân loại; ghi chú thuộc loại này chuyển về "Chưa phân loại".
+/// Trả true nếu đã xoá thành công.
+Future<bool> confirmXoaPhanLoai(BuildContext context, WidgetRef ref, GhiChuPhanLoaiModel item) async {
+  final ok = await showDialog<bool>(
     context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
-    builder: (_) => const _QuanLyPhanLoaiSheet(),
+    builder: (ctx) => AlertDialog(
+      title: const Text('Xoá loại ghi chú'),
+      content: Text(
+        'Xoá "${item.ten}"?${item.soGhiChu > 0 ? '\n${item.soGhiChu} ghi chú sẽ chuyển về "Chưa phân loại".' : ''}',
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Huỷ')),
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('Xoá', style: TextStyle(color: Colors.red)),
+        ),
+      ],
+    ),
   );
-}
-
-class _QuanLyPhanLoaiSheet extends ConsumerWidget {
-  const _QuanLyPhanLoaiSheet();
-
-  /// Xác nhận rồi xoá phân loại; ghi chú thuộc loại này chuyển về không phân loại.
-  Future<void> _delete(BuildContext context, WidgetRef ref, GhiChuPhanLoaiModel item) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Xoá phân loại'),
-        content: Text(
-          'Xoá "${item.ten}"?${item.soGhiChu > 0 ? '\n${item.soGhiChu} ghi chú sẽ chuyển về "Chưa phân loại".' : ''}',
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Huỷ')),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Xoá', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) return;
-    try {
-      await ref.read(ghiChuPhanLoaiProvider.notifier).remove(item.id);
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ghiChuErrorMessage(e))));
-      }
+  if (ok != true) return false;
+  try {
+    await ref.read(ghiChuPhanLoaiProvider.notifier).remove(item.id);
+    return true;
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ghiChuErrorMessage(e))));
     }
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(ghiChuPhanLoaiProvider);
-    return SafeArea(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.7),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 8, 8),
-              child: Row(
-                children: [
-                  const Expanded(
-                    child: Text('Phân loại ghi chú', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  ),
-                  TextButton.icon(
-                    onPressed: () => showPhanLoaiEditDialog(context, ref),
-                    icon: const Icon(Icons.add),
-                    label: const Text('Thêm'),
-                  ),
-                ],
-              ),
-            ),
-            Flexible(
-              child: state.when(
-                loading: () => const Padding(
-                  padding: EdgeInsets.all(24),
-                  child: CircularProgressIndicator(),
-                ),
-                error: (e, _) => Padding(padding: const EdgeInsets.all(24), child: Text('Lỗi: $e')),
-                data: (items) => items.isEmpty
-                    ? const Padding(
-                        padding: EdgeInsets.all(24),
-                        child: Text('Chưa có phân loại nào. Bấm "Thêm" để tạo.'),
-                      )
-                    : ListView.builder(
-                        shrinkWrap: true,
-                        itemCount: items.length,
-                        itemBuilder: (_, i) {
-                          final it = items[i];
-                          return ListTile(
-                            leading: CircleAvatar(radius: 10, backgroundColor: it.color),
-                            title: Text(it.ten),
-                            subtitle: Text('${it.soGhiChu} ghi chú'),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.edit_outlined),
-                                  onPressed: () => showPhanLoaiEditDialog(context, ref, item: it),
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.delete_outline, color: Colors.red),
-                                  onPressed: () => _delete(context, ref, it),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    return false;
   }
 }

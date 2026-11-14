@@ -21,6 +21,10 @@ class GhiChuPhanLoaiRepository {
     return GhiChuPhanLoaiModel.fromJson(res.data as Map<String, dynamic>);
   }
 
+  /// Lưu thứ tự mới: [ids] theo đúng thứ tự hiển thị.
+  Future<void> sapXep(List<int> ids) =>
+      ApiClient.instance.dio.post('/api/ghi-chu-phan-loai/sap-xep', data: {'ids': ids});
+
   /// Xoá phân loại — ghi chú thuộc loại này chuyển về "không phân loại".
   Future<void> delete(int id) =>
       ApiClient.instance.dio.post('/api/ghi-chu-phan-loai/$id/delete');

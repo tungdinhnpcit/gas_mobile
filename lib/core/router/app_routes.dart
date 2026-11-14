@@ -15,6 +15,8 @@ class AppRoutes {
   static const String nhaCungCapList = '/nha-cung-cap';
   static const String ghiChuList = '/ghi-chu';
   static const String ghiChuForm = '/ghi-chu/form';
+  static const String ghiChuPhanLoai = '/ghi-chu/phan-loai'; // mở từ chip ở màn ghi chú (root navigator, chọn để lọc)
+  static const String loaiGhiChu = '/loai-ghi-chu';          // chức năng riêng từ menu (ShellRoute, thêm/sửa/xoá)
   static const String thanSoHoc = '/than-so-hoc';
 
   static String chuyenXeDetail(String id)   => '/chuyen-xe/$id';

@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart'; // thu vien dieu huong route
 import '../../features/ghi_chu/data/models/ghi_chu_model.dart';
 import '../../features/ghi_chu/presentation/screens/ghi_chu_form_screen.dart';
 import '../../features/ghi_chu/presentation/screens/ghi_chu_list_screen.dart';
+import '../../features/ghi_chu/presentation/screens/ghi_chu_phan_loai_screen.dart';
 import '../../features/than_so_hoc/presentation/screens/than_so_hoc_screen.dart'; // man hinh than so hoc
 import '../network/api_client.dart'; // client goi API, xu ly redirect khi het han token
 import '../../features/auth/presentation/screens/login_screen.dart'; // man hinh dang nhap (thiet ke moi theo Figma)
@@ -153,6 +154,14 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (_, state) => CupertinoPage(
           key: state.pageKey,
           child: GhiChuFormScreen(item: state.extra as GhiChuModel?),
+        ),
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: AppRoutes.ghiChuPhanLoai, // danh muc loai ghi chu
+        pageBuilder: (_, state) => CupertinoPage(
+          key: state.pageKey,
+          child: const GhiChuPhanLoaiScreen(),
         ),
       ),
       GoRoute(
@@ -578,6 +587,10 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (_, __) => const GhiChuListScreen(),
           ),
           GoRoute(
+            path: AppRoutes.loaiGhiChu, // chuc nang danh muc loai ghi chu (menu rieng)
+            builder: (_, __) => const GhiChuPhanLoaiScreen(embedded: true),
+          ),
+          GoRoute(
             path: AppRoutes.thanSoHoc, // man hinh than so hoc
             builder: (_, __) => const ThanSoHocScreen(),
           ),
@@ -754,6 +767,7 @@ class _MainShellState extends ConsumerState<_MainShell> with WidgetsBindingObser
     AppRoutes.dongBo:           'Đồng bộ dữ liệu',
     AppRoutes.kiemKeList:       'Kiểm kê',
     AppRoutes.ghiChuList: 'Ghi chú bảo mật',
+    AppRoutes.loaiGhiChu: 'Loại ghi chú',
     AppRoutes.thanSoHoc: 'Thần số học',
   };
 

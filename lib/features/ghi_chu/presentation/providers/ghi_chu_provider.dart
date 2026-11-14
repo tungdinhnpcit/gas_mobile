@@ -66,6 +66,22 @@ class GhiChuPhanLoaiNotifier extends StateNotifier<AsyncValue<List<GhiChuPhanLoa
     await _repo.delete(id);
     await load();
   }
+
+  /// Kéo thả đổi thứ tự: cập nhật UI ngay (optimistic), gửi API; lỗi thì tải lại từ server và ném lỗi ra.
+  Future<void> reorder(int oldIndex, int newIndex) async {
+    final list = [...?state.valueOrNull];
+    // newIndex đã được onReorderItem điều chỉnh sẵn (vị trí sau khi gỡ phần tử cũ)
+    if (oldIndex < 0 || oldIndex >= list.length || newIndex < 0 || newIndex >= list.length) return;
+    final item = list.removeAt(oldIndex);
+    list.insert(newIndex, item);
+    state = AsyncValue.data(list);
+    try {
+      await _repo.sapXep(list.map((e) => e.id).toList());
+    } catch (_) {
+      await load();
+      rethrow;
+    }
+  }
 }
 
 final ghiChuPhanLoaiProvider = StateNotifierProvider.autoDispose<GhiChuPhanLoaiNotifier,
