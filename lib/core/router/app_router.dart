@@ -4,7 +4,8 @@ import 'package:flutter/material.dart'; // thu vien UI chinh cua Flutter
 import 'package:flutter/services.dart' show SystemUiOverlayStyle, Clipboard, ClipboardData; // dieu chinh mau status bar
 import 'package:flutter_riverpod/flutter_riverpod.dart'; // quan ly state toan cuc voi Riverpod
 import 'package:flutter_secure_storage/flutter_secure_storage.dart'; // luu tru an toan (JWT token)
-import 'package:go_router/go_router.dart'; // thu vien dieu huong route
+import 'package:go_router/go_router.dart';
+import '../widgets/swipe_back_wrapper.dart'; // vuot trai sang phai de quay lai // thu vien dieu huong route
 
 import '../../features/ghi_chu/data/models/ghi_chu_model.dart';
 import '../../features/ghi_chu/presentation/screens/ghi_chu_form_screen.dart';
@@ -156,7 +157,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: AppRoutes.ghiChuForm,
-        pageBuilder: (_, state) => CupertinoPage(
+        pageBuilder: (_, state) => _SwipePage(
           key: state.pageKey,
           child: GhiChuFormScreen(item: state.extra as GhiChuModel?),
         ),
@@ -164,7 +165,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: AppRoutes.ghiChuPhanLoai, // danh muc loai ghi chu
-        pageBuilder: (_, state) => CupertinoPage(
+        pageBuilder: (_, state) => _SwipePage(
           key: state.pageKey,
           child: const GhiChuPhanLoaiScreen(),
         ),
@@ -172,7 +173,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: AppRoutes.ganGhiChuPhanLoai, // tick chon ghi chu cho 1 loai
-        pageBuilder: (_, state) => CupertinoPage(
+        pageBuilder: (_, state) => _SwipePage(
           key: state.pageKey,
           child: GanGhiChuPhanLoaiScreen(loai: state.extra as GhiChuPhanLoaiModel),
         ),
@@ -186,17 +187,17 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: AppRoutes.loTrinh,
-        pageBuilder: (_, state) => CupertinoPage(key: state.pageKey, child: const LoTrinhListScreen()),
+        pageBuilder: (_, state) => _SwipePage(key: state.pageKey, child: const LoTrinhListScreen()),
       ),
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: AppRoutes.loTrinhGhi,
-        pageBuilder: (_, state) => CupertinoPage(key: state.pageKey, child: const LoTrinhScreen()),
+        pageBuilder: (_, state) => _SwipePage(key: state.pageKey, child: const LoTrinhScreen()),
       ),
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: '/vi-tri/:id', // vi tri 1 dien thoai tren ban do
-        pageBuilder: (_, state) => CupertinoPage(
+        pageBuilder: (_, state) => _SwipePage(
           key: state.pageKey,
           child: ViTriDetailScreen(viTriId: int.parse(state.pathParameters['id']!)),
         ),
@@ -204,7 +205,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: '/lo-trinh/:id',
-        pageBuilder: (_, state) => CupertinoPage(
+        pageBuilder: (_, state) => _SwipePage(
           key: state.pageKey,
           child: LoTrinhDetailScreen(loTrinhId: int.parse(state.pathParameters['id']!)),
         ),
@@ -213,7 +214,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey, // gan vao root navigator de hien toan man hinh
         path: '/chuyen-xe/:id', // route chi tiet chuyen xe theo id
-        pageBuilder: (_, state) => CupertinoPage( // CupertinoPage cho animation slide tu phai sang trai
+        pageBuilder: (_, state) => _SwipePage( // CupertinoPage cho animation slide tu phai sang trai
           key: state.pageKey,
           child: ChuyenXeDetailScreen(chuyenXeId: state.pathParameters['id']!), // truyen id tu URL
         ),
@@ -221,7 +222,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: '/thong-bao/:id', // route chi tiet thong bao
-        pageBuilder: (_, state) => CupertinoPage(
+        pageBuilder: (_, state) => _SwipePage(
           key: state.pageKey,
           child: ThongBaoDetailScreen(thongBaoId: state.pathParameters['id']!),
         ),
@@ -229,7 +230,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: '/nhan-vien/:id', // route chi tiet nhan vien
-        pageBuilder: (_, state) => CupertinoPage(
+        pageBuilder: (_, state) => _SwipePage(
           key: state.pageKey,
           child: NhanVienDetailScreen(nhanVienId: int.parse(state.pathParameters['id']!)), // parse id sang int
         ),
@@ -237,7 +238,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: '/xe/:id', // route chi tiet xe
-        pageBuilder: (_, state) => CupertinoPage(
+        pageBuilder: (_, state) => _SwipePage(
           key: state.pageKey,
           child: XeDetailScreen(xeId: int.parse(state.pathParameters['id']!)),
         ),
@@ -245,7 +246,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: '/mat-hang/:id', // route chi tiet mat hang
-        pageBuilder: (_, state) => CupertinoPage(
+        pageBuilder: (_, state) => _SwipePage(
           key: state.pageKey,
           child: MatHangDetailScreen(matHangId: int.parse(state.pathParameters['id']!)),
         ),
@@ -253,7 +254,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: '/nha-cung-cap/:id', // route chi tiet nha cung cap
-        pageBuilder: (_, state) => CupertinoPage(
+        pageBuilder: (_, state) => _SwipePage(
           key: state.pageKey,
           child: NhaCungCapDetailScreen(nhaCungCapId: int.parse(state.pathParameters['id']!)),
         ),
@@ -265,7 +266,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           // Callback nhan khach vua tao — gan truc tiep vao man cha, khong phu thuoc pop-result
           final onCreated = (state.extra as Map?)?['onCreated']
               as void Function(Map<String, dynamic>)?;
-          return CupertinoPage(
+          return _SwipePage(
             key: state.pageKey,
             child: TaoKhachHangScreen(onCreated: onCreated),
           );
@@ -274,7 +275,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: AppRoutes.timKiemKhachHang, // route tim kiem khach hang (popup chon)
-        pageBuilder: (_, state) => CupertinoPage(
+        pageBuilder: (_, state) => _SwipePage(
           key: state.pageKey,
           child: const TimKiemKhachHangScreen(),
         ),
@@ -282,7 +283,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: AppRoutes.timKiemPhuXe, // route tim kiem phu xe (popup chon)
-        pageBuilder: (_, state) => CupertinoPage(
+        pageBuilder: (_, state) => _SwipePage(
           key: state.pageKey,
           child: const TimKiemPhuXeScreen(),
         ),
@@ -292,7 +293,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.timKiemMatHang, // route tim kiem mat hang (co the loc theo nha cung cap)
         pageBuilder: (_, state) {
           final extra = state.extra as Map<String, dynamic>?; // doc tham so extra tu man hinh goi
-          return CupertinoPage(
+          return _SwipePage(
             key: state.pageKey,
             child: TimKiemMatHangScreen(
               nhaCungCapId: extra?['nhaCungCapId'] as int?, // loc mat hang theo nha cung cap neu co
@@ -303,7 +304,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: AppRoutes.timKiemNhaCungCap, // route tim kiem nha cung cap (popup chon)
-        pageBuilder: (_, state) => CupertinoPage(
+        pageBuilder: (_, state) => _SwipePage(
           key: state.pageKey,
           child: const TimKiemNhaCungCapScreen(),
         ),
@@ -313,7 +314,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.chonNoCu, // route chon khoan no cu de thu (popup chon)
         pageBuilder: (_, state) {
           final extra = state.extra as Map<String, dynamic>?;
-          return CupertinoPage(
+          return _SwipePage(
             key: state.pageKey,
             child: ChonNoCuScreen(excludeChuyenXeId: extra?['excludeChuyenXeId'] as int?),
           );
@@ -322,7 +323,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: '/khach-hang/:id', // route chi tiet khach hang
-        pageBuilder: (_, state) => CupertinoPage(
+        pageBuilder: (_, state) => _SwipePage(
           key: state.pageKey,
           child: KhachHangDetailScreen(
             id: int.parse(state.pathParameters['id']!),
@@ -336,7 +337,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: AppRoutes.batDauChuyen, // route bat dau ban hang (kiem tra chuyen xe hom nay)
-        pageBuilder: (_, state) => CupertinoPage(
+        pageBuilder: (_, state) => _SwipePage(
           key: state.pageKey,
           child: const BatDauChuyenScreen(),
         ),
@@ -344,7 +345,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: AppRoutes.banHangTheoNgay, // route xem chuyen xe theo ngay cu the
-        pageBuilder: (_, state) => CupertinoPage(
+        pageBuilder: (_, state) => _SwipePage(
           key: state.pageKey,
           child: ChuyenXeTheoNgayScreen(
               args: state.extra as ChuyenXeTheoNgayArgs), // truyen toan bo args qua extra
@@ -355,7 +356,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/ban-hang/:id/nhap', // route nhap ban hang online (chuyen xe da co server id)
         pageBuilder: (_, state) {
           final extra = state.extra as Map<String, dynamic>?;
-          return CupertinoPage(
+          return _SwipePage(
             key: state.pageKey,
             child: NhapBanHangScreen(
               chuyenXeServerId: int.tryParse(state.pathParameters['id']!), // id chuyen xe tren server
@@ -379,7 +380,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           final noVoRows = (extra['noVoRows'] as List?) // lay danh sach dong no vo hien tai
               ?.map((e) => e as BanHangNoVoModel).toList() ?? <BanHangNoVoModel>[];
           final thanhToan = extra['thanhToan'] as BanHangThanhToanModel?; // thong tin thanh toan hien tai
-          return CupertinoPage(
+          return _SwipePage(
             key: state.pageKey,
             child: SuaBanHangKhachHangScreen(
               chuyenXeId: cxId,
@@ -396,7 +397,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: AppRoutes.kiemKeDocLapNhap, // route tao phieu kiem ke doc lap (Luong B)
-        pageBuilder: (_, state) => CupertinoPage(
+        pageBuilder: (_, state) => _SwipePage(
           key: state.pageKey,
           child: KiemKeNhapScreen(
             ngayLap: state.extra is DateTime ? state.extra as DateTime : null,
@@ -406,7 +407,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: '/kiem-ke/:kiemKeId/sua', // sua phieu kiem ke doc lap (Luong B)
-        pageBuilder: (_, state) => CupertinoPage(
+        pageBuilder: (_, state) => _SwipePage(
           key: state.pageKey,
           child: KiemKeNhapScreen(
             kiemKeId: int.parse(state.pathParameters['kiemKeId']!),
@@ -416,7 +417,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: '/kiem-ke/:kiemKeId/nhap-so-mang-ve', // ke toan nhap so mang ve truoc khi chon chuyen
-        pageBuilder: (_, state) => CupertinoPage(
+        pageBuilder: (_, state) => _SwipePage(
           key: state.pageKey,
           child: KiemKeNhapSoMangVeScreen(
             kiemKeId: int.parse(state.pathParameters['kiemKeId']!),
@@ -427,7 +428,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: '/kiem-ke/:kiemKeId/chon-chuyen', // route chon chuyen de lien ket vao phieu kiem ke
-        pageBuilder: (_, state) => CupertinoPage(
+        pageBuilder: (_, state) => _SwipePage(
           key: state.pageKey,
           child: KiemKeChonChuyenScreen(
             kiemKeId: int.parse(state.pathParameters['kiemKeId']!),
@@ -438,7 +439,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: '/kiem-ke/:chuyenXeId/doi-chieu', // route doi chieu so mang ve (ke toan vs lai xe)
-        pageBuilder: (_, state) => CupertinoPage(
+        pageBuilder: (_, state) => _SwipePage(
           key: state.pageKey,
           child: KiemKeDoiChieuScreen(
             chuyenXeId: int.parse(state.pathParameters['chuyenXeId']!),
@@ -448,7 +449,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: AppRoutes.kiemKeTaoChuyen, // Luong A cu: tao chuyen roi kiem ke gan san (khong con loi vao tu menu)
-        pageBuilder: (_, state) => CupertinoPage(
+        pageBuilder: (_, state) => _SwipePage(
           key: state.pageKey,
           child: const KiemKeTaoChuyenScreen(),
         ),
@@ -456,7 +457,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: '/kiem-ke/:chuyenXeId/nhap-cu', // Luong A cu: nhap so lieu kiem ke gan san cho 1 chuyen
-        pageBuilder: (_, state) => CupertinoPage(
+        pageBuilder: (_, state) => _SwipePage(
           key: state.pageKey,
           child: KiemKeNhapScreen(
             chuyenXeId: int.parse(state.pathParameters['chuyenXeId']!),
@@ -466,7 +467,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: '/dai-ly-chi-tiet/:id', // route chi tiet lich su mua hang cua dai ly
-        pageBuilder: (_, state) => CupertinoPage(
+        pageBuilder: (_, state) => _SwipePage(
           key: state.pageKey,
           child: DaiLyChiTietScreen(
             khachHangId: int.parse(state.pathParameters['id']!),
@@ -482,7 +483,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: '/tong-quan/chuyen-xe', // route thong ke chuyen xe theo khoang thoi gian
-        pageBuilder: (_, state) => CupertinoPage(
+        pageBuilder: (_, state) => _SwipePage(
           key: state.pageKey,
           child: ThongKeChuyenXeScreen(
             tuNgay: state.uri.queryParameters['tuNgay'] != null
@@ -497,7 +498,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: '/phe-duyet/:id', // route man hinh phe duyet chuyen xe (ke toan sau khi lai xe ket thuc tren mobile)
-        pageBuilder: (_, state) => CupertinoPage(
+        pageBuilder: (_, state) => _SwipePage(
           key: state.pageKey,
           child: PheDuyetChuyenXeScreen(
             chuyenXeId: int.parse(state.pathParameters['id']!), // id chuyen xe can phe duyet
@@ -804,6 +805,13 @@ class _MainShellState extends ConsumerState<_MainShell> with WidgetsBindingObser
     AppRoutes.thanSoHoc: 'Thần số học',
   };
 
+  // cac route khong hien bottom bar (man hinh bao mat / ban do)
+  static const _hideBottomBarRoutes = {
+    AppRoutes.ghiChuList, // Ghi chu bao mat
+    AppRoutes.loaiGhiChu, // Loai ghi chu
+    AppRoutes.viTri, // Vi tri dien thoai
+  };
+
   // tra ve tieu de AppBar tuong ung voi route hien tai
   String _resolveTitle(String location) {
     if (_featureTitles.containsKey(location)) return _featureTitles[location]!; // man hinh chuc nang
@@ -834,21 +842,10 @@ class _MainShellState extends ConsumerState<_MainShell> with WidgetsBindingObser
       }
     }
 
-    // Vuot phai de quay lai -- chi bat khi vuot bat dau tu mep trai man hinh (< 40px),
-    // tranh nuot gesture keo doc cua ListView (vd: pull-to-refresh).
-    double dragStartX = 0;
-    return GestureDetector(
-      // Chi cham gesture ngang; khong dung behavior de khong nuot cham cua child.
-      onHorizontalDragStart: (details) {
-        dragStartX = details.globalPosition.dx;
-      },
-      onHorizontalDragEnd: (details) {
-        if (!isTabRoute &&
-            dragStartX < 40 && // chi vuot back khi bat dau tu mep trai
-            (details.primaryVelocity ?? 0) > 300) { // vuot nhanh tu trai sang phai
-          goBack();
-        }
-      },
+    // Vuot trai sang phai o bat ky vi tri nao de quay lai (tab chinh thi tat).
+    return SwipeBackWrapper(
+      enabled: !isTabRoute,
+      onBack: goBack,
       child: Scaffold(
         extendBodyBehindAppBar: isHome, // trang chu: body tran xuong duoi AppBar (hieu ung trong suot)
         appBar: AppBar(
@@ -875,7 +872,9 @@ class _MainShellState extends ConsumerState<_MainShell> with WidgetsBindingObser
           title: isHome ? null : Text(title), // trang chu khong co title, man hinh khac hien title
         ),
         body: widget.child, // noi dung man hinh hien tai duoc inject tu ShellRoute
-        bottomNavigationBar: NavigationBar( // thanh dieu huong duoi cung voi 3 tab
+        bottomNavigationBar: _hideBottomBarRoutes.contains(location)
+            ? null // an bottom bar o cac man hinh dac biet
+            : NavigationBar( // thanh dieu huong duoi cung voi 3 tab
           selectedIndex: _currentIndex, // danh dau tab dang chon
           onDestinationSelected: _onTabTapped, // goi ham khi bam vao tab
           destinations: [
@@ -934,4 +933,11 @@ class _NotificationIcon extends ConsumerWidget {
       child: Icon(selectedIcon),
     );
   }
+}
+
+/// Trang CupertinoPage có bọc SwipeBackWrapper — vuốt trái→phải ở bất kỳ vị trí nào để quay lại
+/// (CupertinoPage gốc chỉ nhận vuốt ở mép trái ~20px, trên Android bị gesture hệ thống chiếm).
+class _SwipePage<T> extends CupertinoPage<T> {
+  _SwipePage({super.key, required Widget child})
+      : super(child: SwipeBackWrapper(child: child));
 }
