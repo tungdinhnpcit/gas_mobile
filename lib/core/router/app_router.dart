@@ -68,6 +68,9 @@ import 'app_routes.dart'; // hang so chua tat ca cac duong dan route
 import '../../features/lo_trinh/presentation/screens/lo_trinh_screen.dart'; // ghi lộ trình
 import '../../features/lo_trinh/presentation/screens/lo_trinh_list_screen.dart'; // lịch sử lộ trình
 import '../../features/lo_trinh/presentation/screens/lo_trinh_detail_screen.dart'; // xem lại lộ trình
+import '../../features/vi_tri/presentation/screens/vi_tri_list_screen.dart'; // danh sách điện thoại chia sẻ vị trí
+import '../../features/vi_tri/presentation/screens/vi_tri_detail_screen.dart'; // vị trí 1 điện thoại trên bản đồ
+import '../../features/vi_tri/services/chia_se_vi_tri_service.dart'; // chia sẻ vị trí nền
 
 // key dieu huong navigator goc - dung cho cac man hinh full-screen khong co bottom nav
 final _rootNavigatorKey  = GlobalKey<NavigatorState>();
@@ -189,6 +192,14 @@ final routerProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: _rootNavigatorKey,
         path: AppRoutes.loTrinhGhi,
         pageBuilder: (_, state) => CupertinoPage(key: state.pageKey, child: const LoTrinhScreen()),
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: '/vi-tri/:id', // vi tri 1 dien thoai tren ban do
+        pageBuilder: (_, state) => CupertinoPage(
+          key: state.pageKey,
+          child: ViTriDetailScreen(viTriId: int.parse(state.pathParameters['id']!)),
+        ),
       ),
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
@@ -573,6 +584,10 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (_, __) => const ChamCongScreen(),
           ),
           GoRoute(
+            path: AppRoutes.viTri, // danh sach dien thoai dang chia se vi tri
+            builder: (_, __) => const ViTriListScreen(),
+          ),
+          GoRoute(
             path: AppRoutes.caiDat, // man hinh cai dat chung
             builder: (_, __) => const CaiDatScreen(),
           ),
@@ -714,6 +729,13 @@ class _MainShellState extends ConsumerState<_MainShell> with WidgetsBindingObser
       debugPrint('[POST-LOGIN] FCM registration failed: $e');
     }
 
+    // 1b. Khoi phuc chia se vi tri neu nguoi dung da bat truoc do
+    try {
+      await ChiaSeViTriService.instance.khoiPhuc();
+    } catch (e) {
+      debugPrint('[POST-LOGIN] Khoi phuc chia se vi tri loi: $e');
+    }
+
     // 2. Dang ky background polling (workmanager) de kiem tra thong bao khi app bi kill
     try {
       await BackgroundPollingService.registerPeriodicTask(); // dang ky task chay dinh ky khi app nen
@@ -772,6 +794,7 @@ class _MainShellState extends ConsumerState<_MainShell> with WidgetsBindingObser
     AppRoutes.daiLyChuaMua:     'Đại lý lâu chưa mua',
     AppRoutes.lichTuan:         'Lịch tuần',
     AppRoutes.chamCong:         'Chấm công',
+    AppRoutes.viTri:            'Vị trí điện thoại',
     AppRoutes.thongTinTaiKhoan: 'Thông tin tài khoản',
     AppRoutes.doiMatKhau:       'Đổi mật khẩu',
     AppRoutes.dongBo:           'Đồng bộ dữ liệu',

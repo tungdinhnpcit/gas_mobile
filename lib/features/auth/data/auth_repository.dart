@@ -7,6 +7,7 @@ import '../../../core/constants/storage_keys.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/login_crypto.dart';
 import '../../../core/services/background_polling_service.dart';
+import '../../vi_tri/services/chia_se_vi_tri_service.dart';
 import 'auth_models.dart';
 
 class AuthRepository {
@@ -83,6 +84,10 @@ class AuthRepository {
   }
 
   Future<void> logout() async {
+    // Tắt chia sẻ vị trí trước khi huỷ phiên (còn token để báo server)
+    try {
+      await ChiaSeViTriService.instance.dung();
+    } catch (_) {}
     // Huỷ background polling khi logout
     await BackgroundPollingService.cancelAll();
 

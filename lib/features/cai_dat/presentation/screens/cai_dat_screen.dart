@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
+import '../../../../features/vi_tri/services/chia_se_vi_tri_service.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../features/auth/data/auth_repository.dart';
 import '../../../../features/auth/data/biometric_service.dart';
@@ -90,6 +92,24 @@ class _CaiDatScreenState extends ConsumerState<CaiDatScreen> {
     }
   }
 
+  bool _viTriBusy = false;
+
+  /// Bật/tắt chia sẻ vị trí: bật thì xin quyền + chạy nền, lỗi quyền → báo và giữ trạng thái tắt.
+  Future<void> _toggleChiaSeViTri(bool value) async {
+    if (_viTriBusy) return;
+    setState(() => _viTriBusy = true);
+    try {
+      if (value) {
+        final loi = await ChiaSeViTriService.instance.batDau();
+        if (loi != null) _showMessage(loi);
+      } else {
+        await ChiaSeViTriService.instance.dung();
+      }
+    } finally {
+      if (mounted) setState(() => _viTriBusy = false);
+    }
+  }
+
   void _showMessage(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
@@ -125,6 +145,27 @@ class _CaiDatScreenState extends ConsumerState<CaiDatScreen> {
           ),
           const Divider(height: 1, indent: 56),
         ],
+        ValueListenableBuilder<bool>(
+          valueListenable: ChiaSeViTriService.instance.dangBat,
+          builder: (context, dangBat, _) => ValueListenableBuilder<DateTime?>(
+            valueListenable: ChiaSeViTriService.instance.lanGuiCuoi,
+            builder: (context, lanGui, _) => SwitchListTile(
+              secondary: Icon(Icons.share_location, color: Theme.of(context).colorScheme.primary),
+              title: const Text('Chia sẻ vị trí'),
+              subtitle: Text(
+                !dangBat
+                    ? 'Bật để tự động cập nhật vị trí định kỳ (chạy nền)'
+                    : lanGui == null
+                        ? 'Đang bật — chờ gửi vị trí lần đầu'
+                        : 'Đang bật — gửi lần cuối lúc ${DateFormat('HH:mm dd/MM').format(lanGui)}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              value: dangBat,
+              onChanged: _viTriBusy ? null : _toggleChiaSeViTri,
+            ),
+          ),
+        ),
+        const Divider(height: 1, indent: 56),
         _SettingTile(
           icon: Icons.lock_outline,
           title: 'Đổi mật khẩu',

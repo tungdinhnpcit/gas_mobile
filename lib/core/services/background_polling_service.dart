@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart'; // Lưu baseline co
 import 'package:workmanager/workmanager.dart'; // Periodic background task
 
 import '../constants/app_constants.dart'; // Notification channel ID, API base URL
+import '../../features/vi_tri/services/chia_se_vi_tri_service.dart' show viTriTaskName, capNhatViTriNen; // task chia sẻ vị trí nền
 import '../../features/thong_bao/data/repositories/thong_bao_repository.dart'; // Gọi API so-chua-doc từ trong app (dùng ApiClient/Dio, khác isolate polling)
 
 // Mã định danh task duy nhất — Workmanager dùng để track task
@@ -27,6 +28,11 @@ void callbackDispatcher() {
   // Workmanager.executeTask: chạy async task mỗi khi trigger periodic job
   Workmanager().executeTask((task, inputData) async {
     try {
+      // Task chia sẻ vị trí dự phòng (app bị kill) — tách khỏi polling thông báo
+      if (task == viTriTaskName) {
+        await capNhatViTriNen();
+        return true;
+      }
       // Gọi hàm polling chính — kiểm tra thông báo mới
       await _doPoll();
     } catch (e) {

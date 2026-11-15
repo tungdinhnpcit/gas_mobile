@@ -10,6 +10,7 @@ import 'package:sqflite/sqflite.dart' show Sqflite;
 import '../../../core/database/local_database.dart';
 import '../data/models/lo_trinh_model.dart';
 import '../data/repositories/lo_trinh_repository.dart';
+import '../../vi_tri/services/chia_se_vi_tri_service.dart';
 
 /// Trạng thái ghi lộ trình hiện tại trên máy.
 class LoTrinhTrackingState {
@@ -126,6 +127,7 @@ class LoTrinhTrackingNotifier extends StateNotifier<LoTrinhTrackingState> {
       debugPrint('[LO_TRINH] kết thúc lỗi (sẽ được kết thúc lại khi mở app): $e');
     }
     state = const LoTrinhTrackingState();
+    unawaited(ChiaSeViTriService.instance.layLaiStream());
     return lt.id;
   }
 
@@ -141,6 +143,7 @@ class LoTrinhTrackingNotifier extends StateNotifier<LoTrinhTrackingState> {
       await db.delete(_bang, where: 'lo_trinh_id = ?', whereArgs: [lt.id]);
       await _repo.delete(lt.id);
       state = const LoTrinhTrackingState();
+      unawaited(ChiaSeViTriService.instance.layLaiStream());
       return null;
     } catch (e) {
       debugPrint('[LO_TRINH] huỷ lỗi: $e');
@@ -162,6 +165,8 @@ class LoTrinhTrackingNotifier extends StateNotifier<LoTrinhTrackingState> {
 
   Future<void> _batDauStream() async {
     await _dungStream();
+    // geolocator chỉ giữ 1 stream → chia sẻ vị trí nhường stream, nhận vị trí qua _onViTri
+    await ChiaSeViTriService.instance.nhuongStream();
     final settings = defaultTargetPlatform == TargetPlatform.android
         ? AndroidSettings(
             accuracy: LocationAccuracy.high,
@@ -226,6 +231,7 @@ class LoTrinhTrackingNotifier extends StateNotifier<LoTrinhTrackingState> {
   /// Nhận 1 vị trí mới: lọc điểm kém chính xác / nhảy / trôi khi đứng yên, lưu SQLite,
   /// cập nhật polyline + quãng đường.
   Future<void> _onViTri(Position p) async {
+    ChiaSeViTriService.instance.nhanViTri(p);
     final lt = state.loTrinh;
     if (lt == null || p.accuracy > _maxDoChinhXacM) return;
     if (!_hopLe(p)) return;
