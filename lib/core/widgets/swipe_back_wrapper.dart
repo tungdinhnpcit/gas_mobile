@@ -47,7 +47,7 @@ class _SwipeBackWrapperState extends State<SwipeBackWrapper> {
   @override
   Widget build(BuildContext context) {
     if (!widget.enabled) return widget.child;
-    return GestureDetector(
+    final gesture = GestureDetector(
       onHorizontalDragStart: (_) => _dx = 0,
       onHorizontalDragUpdate: (d) => _dx += d.delta.dx,
       onHorizontalDragEnd: (d) {
@@ -57,6 +57,19 @@ class _SwipeBackWrapperState extends State<SwipeBackWrapper> {
         _dx = 0;
       },
       child: widget.child,
+    );
+    // Có onBack (shell tự xử lý back hệ thống) → chỉ cần gesture
+    if (widget.onBack != null) return gesture;
+
+    // Route root mở bằng context.go (không còn màn phía dưới): back hệ thống / vuốt mép
+    // của Android sẽ thoát app → chặn lại và về trang chủ.
+    final canPopNav = Navigator.of(context).canPop();
+    return PopScope(
+      canPop: canPopNav,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && !canPopNav) context.go(AppRoutes.home);
+      },
+      child: gesture,
     );
   }
 }

@@ -1,7 +1,7 @@
 // lib/core/router/app_router.dart
 import 'package:flutter/cupertino.dart' show CupertinoPage; // CupertinoPage cho animation swipe-back kieu iOS
 import 'package:flutter/material.dart'; // thu vien UI chinh cua Flutter
-import 'package:flutter/services.dart' show SystemUiOverlayStyle, Clipboard, ClipboardData; // dieu chinh mau status bar
+import 'package:flutter/services.dart' show SystemUiOverlayStyle, Clipboard, ClipboardData, SystemNavigator; // dieu chinh mau status bar
 import 'package:flutter_riverpod/flutter_riverpod.dart'; // quan ly state toan cuc voi Riverpod
 import 'package:flutter_secure_storage/flutter_secure_storage.dart'; // luu tru an toan (JWT token)
 import 'package:go_router/go_router.dart';
@@ -826,6 +826,27 @@ class _MainShellState extends ConsumerState<_MainShell> with WidgetsBindingObser
     context.go(_tabs[index].route); // dieu huong toi route cua tab do
   }
 
+  bool _exitDialogOpen = false; // tranh mo 2 dialog thoat khi vuot lien tiep
+
+  /// Hoi xac nhan truoc khi thoat phan mem (khi vuot/back o trang chu).
+  Future<void> _confirmExit() async {
+    if (_exitDialogOpen) return;
+    _exitDialogOpen = true;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Thoát phần mềm?'),
+        content: const Text('Bạn có muốn thoát phần mềm không?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Huỷ')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Thoát')),
+        ],
+      ),
+    );
+    _exitDialogOpen = false;
+    if (ok == true) SystemNavigator.pop();
+  }
+
   @override
   Widget build(BuildContext context) {
     final location   = GoRouterState.of(context).uri.path; // lay duong dan hien tai
@@ -843,9 +864,20 @@ class _MainShellState extends ConsumerState<_MainShell> with WidgetsBindingObser
     }
 
     // Vuot trai sang phai o bat ky vi tri nao de quay lai (tab chinh thi tat).
-    return SwipeBackWrapper(
-      enabled: !isTabRoute,
-      onBack: goBack,
+    // Back he thong (vuot mep trai Android): trang chu → hoi thoat; man khac → quay lai.
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (isHome) {
+          _confirmExit();
+        } else {
+          goBack();
+        }
+      },
+      child: SwipeBackWrapper(
+      enabled: isHome || !isTabRoute,
+      onBack: isHome ? _confirmExit : goBack,
       child: Scaffold(
         extendBodyBehindAppBar: isHome, // trang chu: body tran xuong duoi AppBar (hieu ung trong suot)
         appBar: AppBar(
@@ -895,6 +927,7 @@ class _MainShellState extends ConsumerState<_MainShell> with WidgetsBindingObser
             ),
           ],
         ),
+      ),
       ),
     );
   }
