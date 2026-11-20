@@ -14,6 +14,7 @@ import '../../features/ghi_chu/presentation/screens/ghi_chu_phan_loai_screen.dar
 import '../../features/ghi_chu/data/models/ghi_chu_phan_loai_model.dart';
 import '../../features/ghi_chu/presentation/screens/gan_ghi_chu_phan_loai_screen.dart';
 import '../../features/than_so_hoc/presentation/screens/than_so_hoc_screen.dart'; // man hinh than so hoc
+import '../../features/thu_vien_anh/presentation/screens/thu_vien_anh_screen.dart'; // man hinh thu vien anh
 import '../network/api_client.dart'; // client goi API, xu ly redirect khi het han token
 import '../services/session_replaced_handler.dart'; // xu ly bi dang xuat do dang nhap may khac
 import '../../features/auth/presentation/screens/login_screen.dart'; // man hinh dang nhap (thiet ke moi theo Figma)
@@ -621,6 +622,10 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: AppRoutes.thanSoHoc, // man hinh than so hoc
             builder: (_, __) => const ThanSoHocScreen(),
           ),
+          GoRoute(
+            path: AppRoutes.thuVienAnh, // thu vien anh (xem/tai anh)
+            builder: (_, __) => const ThuVienAnhScreen(),
+          ),
         ],
       ),
     ],
@@ -810,6 +815,7 @@ class _MainShellState extends ConsumerState<_MainShell> with WidgetsBindingObser
     AppRoutes.ghiChuList: 'Ghi chú bảo mật',
     AppRoutes.loaiGhiChu: 'Loại ghi chú',
     AppRoutes.thanSoHoc: 'Thần số học',
+    AppRoutes.thuVienAnh: 'Thư viện ảnh',
   };
 
   // cac route khong hien bottom bar (man hinh bao mat / ban do)

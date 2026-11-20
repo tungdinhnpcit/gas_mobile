@@ -4,6 +4,8 @@
 <dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Cần vị trí để lưu tọa độ cửa hàng khách hàng</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Ứng dụng cần quyền lưu ảnh vào thư viện ảnh</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Cần quyền camera để chụp ảnh cửa hàng</string>
 	<key>CFBundleDevelopmentRegion</key>
