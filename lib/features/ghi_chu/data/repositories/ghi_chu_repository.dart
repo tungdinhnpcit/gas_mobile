@@ -28,6 +28,8 @@ class GhiChuRepository {
       'matKhau': m.matKhau,
       'ghiChu': m.ghiChu.trim(),
       'phanLoaiId': m.phanLoaiId,
+      'viDo': m.viDo,
+      'kinhDo': m.kinhDo,
     };
     final res = m.id == null
         ? await ApiClient.instance.dio.post('/api/ghi-chu-bao-mat', data: data)

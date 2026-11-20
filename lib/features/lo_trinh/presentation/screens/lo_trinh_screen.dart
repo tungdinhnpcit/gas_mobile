@@ -3,6 +3,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:quan_ly_gas_app/core/map/osm_tile_layer.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
@@ -179,10 +180,7 @@ class _LoTrinhScreenState extends ConsumerState<LoTrinhScreen> {
                   },
                 ),
                 children: [
-                  TileLayer(
-                    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    userAgentPackageName: 'com.npc.quan_ly_gas',
-                  ),
+                  osmTileLayer(),
                   if (st.diem.length >= 2)
                     PolylineLayer(polylines: dungPolylineLoTrinh(st.diem)),
                   MarkerLayer(markers: [

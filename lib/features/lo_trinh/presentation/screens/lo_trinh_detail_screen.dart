@@ -1,6 +1,7 @@
 // lib/features/lo_trinh/presentation/screens/lo_trinh_detail_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:quan_ly_gas_app/core/map/osm_tile_layer.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -82,10 +83,7 @@ class LoTrinhDetailScreen extends ConsumerWidget {
                             : null,
                       ),
                       children: [
-                        TileLayer(
-                          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                          userAgentPackageName: 'com.npc.quan_ly_gas',
-                        ),
+                        osmTileLayer(),
                         PolylineLayer(polylines: dungPolylineLoTrinh(lt.diem)),
                         // Ảnh có toạ độ → ghim icon camera, bấm để xem ảnh
                         MarkerLayer(markers: [

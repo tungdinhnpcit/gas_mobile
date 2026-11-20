@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../../../core/widgets/anh_gallery_viewer.dart';
 import '../../data/models/lo_trinh_model.dart';
 import '../providers/lo_trinh_provider.dart';
 
@@ -126,8 +127,21 @@ void xemAnhLoTrinh(BuildContext context, AnhLoTrinhModel anh) {
   );
 }
 
+/// Mở toàn bộ ảnh của lộ trình toàn màn hình (chú thích = giờ chụp + ghi chú ảnh).
+void xemDanhSachAnhLoTrinh(BuildContext context, List<AnhLoTrinhModel> ds, {int batDau = 0}) {
+  final df = DateFormat('HH:mm dd/MM/yyyy');
+  xemDanhSachAnh(
+    context,
+    ds.map((a) => a.fullUrl).toList(),
+    chuThich: ds
+        .map((a) => '${df.format(a.chupLuc)}${a.ghiChu?.isNotEmpty == true ? '\n${a.ghiChu}' : ''}')
+        .toList(),
+    batDau: batDau,
+  );
+}
+
 /// Khu vực ảnh của lộ trình ở màn chi tiết: nút thêm ảnh, dải thumbnail cuộn ngang,
-/// bấm để xem lớn, nhấn giữ để xoá.
+/// bấm để xem lớn (vuốt xem tiếp các ảnh khác), bấm nút X ở góc để xoá.
 class AnhLoTrinhSection extends ConsumerWidget {
   final LoTrinhModel loTrinh;
   const AnhLoTrinhSection({super.key, required this.loTrinh});
@@ -194,21 +208,43 @@ class AnhLoTrinhSection extends ConsumerWidget {
               scrollDirection: Axis.horizontal,
               itemCount: ds.length,
               separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (_, i) => GestureDetector(
-                onTap: () => xemAnhLoTrinh(context, ds[i]),
-                onLongPress: () => _xoaAnh(context, ref, ds[i]),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: CachedNetworkImage(
-                    imageUrl: ds[i].fullUrl,
-                    width: 72,
-                    height: 72,
-                    fit: BoxFit.cover,
-                    placeholder: (_, __) => Container(color: Colors.grey.shade200),
-                    errorWidget: (_, __, ___) =>
-                        Container(color: Colors.grey.shade200, child: const Icon(Icons.broken_image)),
+              itemBuilder: (_, i) => SizedBox(
+                width: 72,
+                height: 72,
+                child: Stack(children: [
+                  GestureDetector(
+                    onTap: () => xemDanhSachAnhLoTrinh(context, ds, batDau: i),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: CachedNetworkImage(
+                        imageUrl: ds[i].fullUrl,
+                        width: 72,
+                        height: 72,
+                        fit: BoxFit.cover,
+                        placeholder: (_, __) => Container(color: Colors.grey.shade200),
+                        errorWidget: (_, __, ___) =>
+                            Container(color: Colors.grey.shade200, child: const Icon(Icons.broken_image)),
+                      ),
+                    ),
                   ),
-                ),
+                  // Nút xoá ảnh ở góc trên phải
+                  Positioned(
+                    top: 2,
+                    right: 2,
+                    child: Material(
+                      color: Colors.black54,
+                      shape: const CircleBorder(),
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: () => _xoaAnh(context, ref, ds[i]),
+                        child: const Padding(
+                          padding: EdgeInsets.all(4),
+                          child: Icon(Icons.close, size: 14, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ),
+                ]),
               ),
             ),
           ),

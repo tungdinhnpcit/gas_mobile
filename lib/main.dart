@@ -9,6 +9,8 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'app.dart';
 import 'core/config/device_config.dart';
 import 'core/constants/app_constants.dart';
+import 'core/constants/notification_types.dart';
+import 'core/services/session_replaced_handler.dart';
 import 'core/network/mtls_client.dart';
 import 'core/services/background_polling_service.dart';
 import 'core/services/notification_service.dart';
@@ -19,6 +21,11 @@ import 'firebase_options.dart';
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  // Đăng nhập trên máy khác khi app đang nền/bị kill → xoá phiên, lần mở sau hiện thông báo
+  if (message.data['loai'] == NotificationTypes.sessionReplaced) {
+    await SessionReplacedHandler.xuLyNen();
+    return;
+  }
   await NotificationService.showLocalNotification(message);
 }
 

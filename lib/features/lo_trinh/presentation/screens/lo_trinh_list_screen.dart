@@ -6,10 +6,12 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/router/app_routes.dart';
+import '../../../../core/widgets/anh_gallery_viewer.dart';
 import '../../../../core/utils/vietnamese_text.dart';
 import '../../data/models/lo_trinh_model.dart';
 import '../../services/lo_trinh_tracking_service.dart';
 import '../providers/lo_trinh_provider.dart';
+import '../widgets/anh_lo_trinh_section.dart';
 import '../widgets/doi_ten_lo_trinh_dialog.dart';
 
 /// Danh sách lộ trình (root navigator — có Scaffold/AppBar riêng, không hiện bottom tabs):
@@ -253,11 +255,17 @@ class _LoTrinhListScreenState extends ConsumerState<LoTrinhListScreen> {
                             child: const Icon(Icons.delete, color: Colors.white),
                           ),
                           child: ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: lt.dangGhi ? Colors.orange.shade100 : Colors.blue.shade50,
-                              child: Icon(lt.dangGhi ? Icons.radio_button_checked : Icons.route,
-                                  color: lt.dangGhi ? Colors.orange : Colors.blue),
-                            ),
+                            leading: lt.anh.isEmpty
+                                ? CircleAvatar(
+                                    backgroundColor: lt.dangGhi ? Colors.orange.shade100 : Colors.blue.shade50,
+                                    child: Icon(lt.dangGhi ? Icons.radio_button_checked : Icons.route,
+                                        color: lt.dangGhi ? Colors.orange : Colors.blue),
+                                  )
+                                : AnhThumbnail(
+                                    url: lt.anh.first.fullUrl,
+                                    badgeColor: lt.dangGhi ? Colors.orange : null,
+                                    onTap: () => xemDanhSachAnhLoTrinh(context, lt.anh),
+                                  ),
                             title: Text(
                                 lt.ten?.isNotEmpty == true ? lt.ten! : 'Lộ trình ${dfGio.format(lt.batDauLuc)}'),
                             subtitle: Text([
@@ -266,7 +274,13 @@ class _LoTrinhListScreenState extends ConsumerState<LoTrinhListScreen> {
                               if (lt.dangGhi) 'Đang ghi',
                               if (lt.tenNhanVien != null) lt.tenNhanVien!,
                             ].join(' • ')),
-                            trailing: PopupMenuButton<String>(
+                            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                              if (lt.anh.isNotEmpty)
+                                XemAnhButton(
+                                  soAnh: lt.anh.length,
+                                  onPressed: () => xemDanhSachAnhLoTrinh(context, lt.anh),
+                                ),
+                              PopupMenuButton<String>(
                               onSelected: (v) {
                                 if (v == 'xoa') _xoa(lt);
                                 if (v == 'doi_ten') _doiTen(lt);
@@ -290,6 +304,7 @@ class _LoTrinhListScreenState extends ConsumerState<LoTrinhListScreen> {
                                 ),
                               ],
                             ),
+                            ]),
                             onTap: () => context.push(AppRoutes.loTrinhDetail(lt.id)),
                           ),
                         );

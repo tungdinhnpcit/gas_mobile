@@ -1,8 +1,10 @@
 // lib/features/vi_tri/services/chia_se_vi_tri_service.dart
 import 'dart:async';
+import 'dart:io';
 
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:geolocator/geolocator.dart';
@@ -12,6 +14,8 @@ import 'package:workmanager/workmanager.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/storage_keys.dart';
 import '../../../core/network/hmac_interceptor.dart';
+import '../../../core/network/mtls_client.dart';
+import '../../../core/services/session_replaced_handler.dart';
 import '../../auth/data/biometric_service.dart';
 import '../data/repositories/vi_tri_repository.dart';
 
@@ -56,6 +60,25 @@ class ChiaSeViTriService {
     final p = await Geolocator.checkPermission();
     if (p == LocationPermission.denied || p == LocationPermission.deniedForever) return;
     await _khoiDong();
+  }
+
+  bool _dangKhoiDong = false; // chống gọi chồng khi app resume liên tục
+
+  /// Gọi mỗi khi app quay lại foreground: nếu đang bật chia sẻ thì khởi động lại
+  /// stream + timer và gửi vị trí ngay (ROM như vivo có thể đã giết stream khi app ở nền).
+  Future<void> khoiDongLai() async {
+    if (_dangKhoiDong) return;
+    _dangKhoiDong = true;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (!(prefs.getBool(_prefKeyBat) ?? false)) return;
+      final p = await Geolocator.checkPermission();
+      if (p == LocationPermission.denied || p == LocationPermission.deniedForever) return;
+      _guiLuc = null; // cho phép gửi ngay, không chờ khoảng tối thiểu
+      await _khoiDong();
+    } finally {
+      _dangKhoiDong = false;
+    }
   }
 
   /// Bật chia sẻ vị trí; trả thông báo lỗi (null = OK).
@@ -156,11 +179,15 @@ class ChiaSeViTriService {
         accuracy: LocationAccuracy.high,
         distanceFilter: 0,
         intervalDuration: chuKy,
+        // Thông báo kín đáo: nội dung trung tính, tên kênh riêng để người dùng tự tắt trong
+        // Cài đặt máy, không ghim (vuốt bỏ được) — dịch vụ nền vẫn chạy tiếp.
+        // Kênh của geolocator đã là IMPORTANCE_NONE (im lặng, thu gọn, không popup).
         foregroundNotificationConfig: const ForegroundNotificationConfig(
-          notificationTitle: 'Đang chia sẻ vị trí',
-          notificationText: 'Vị trí của bạn được cập nhật định kỳ cho công ty',
+          notificationTitle: 'Quản lý Gas',
+          notificationText: 'Đang chạy nền',
+          notificationChannelName: 'Dịch vụ nền',
           enableWakeLock: true,
-          setOngoing: true,
+          setOngoing: false,
         ),
       );
     } else if (defaultTargetPlatform == TargetPlatform.iOS) {
@@ -245,25 +272,83 @@ Future<void> capNhatViTriNen() async {
   final deviceId = await storage.read(key: StorageKeys.deviceId);
   if (token == null || token.isEmpty || deviceId == null) return;
 
+  // Isolate nền không có cache mTLS của app chính → nạp lại
+  try {
+    await preloadMtlsContext();
+  } catch (e) {
+    debugPrint('[VI_TRI] task nền: nạp mTLS lỗi: $e');
+  }
+
   final p = await Geolocator.getCurrentPosition(
     locationSettings: const LocationSettings(
       accuracy: LocationAccuracy.high,
       timeLimit: Duration(seconds: 30),
     ),
   );
-  final dio = Dio(BaseOptions(
-    baseUrl: AppConstants.resolvedApiUrl,
-    connectTimeout: const Duration(seconds: 10),
-    headers: {'Authorization': 'Bearer $token'},
-  ))
-    ..interceptors.add(HmacInterceptor());
-  await dio.post('/api/vi-tri/cap-nhat', data: {
+  final data = {
     'deviceId': deviceId,
     'deviceInfo': await moTaThietBi(),
     'lat': p.latitude,
     'lng': p.longitude,
     'doChinhXac': p.accuracy,
     'tocDo': p.speed >= 0 ? p.speed : null,
-  });
+  };
+
+  try {
+    await _taoDioNen(token: token).post('/api/vi-tri/cap-nhat', data: data);
+  } on DioException catch (e) {
+    if (e.response?.statusCode != 401) {
+      debugPrint('[VI_TRI] task nền lỗi: $e');
+      rethrow;
+    }
+    // Access token hết hạn → làm mới phiên rồi thử lại 1 lần
+    final tokenMoi = await _refreshTokenNen(storage);
+    if (tokenMoi == null) {
+      debugPrint('[VI_TRI] task nền: hết phiên, không làm mới được token');
+      return;
+    }
+    await _taoDioNen(token: tokenMoi).post('/api/vi-tri/cap-nhat', data: data);
+  }
   debugPrint('[VI_TRI] task nền đã gửi vị trí');
+}
+
+/// Tạo Dio cho isolate nền: HMAC + mTLS giống ApiClient của app chính.
+Dio _taoDioNen({String? token}) {
+  final dio = Dio(BaseOptions(
+    baseUrl: AppConstants.resolvedApiUrl,
+    connectTimeout: const Duration(seconds: 10),
+    receiveTimeout: const Duration(seconds: 15),
+    headers: {if (token != null) 'Authorization': 'Bearer $token'},
+  ));
+  (dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient =
+      () => HttpClient(context: cachedMtlsSecurityContext);
+  dio.interceptors.add(HmacInterceptor());
+  return dio;
+}
+
+/// Làm mới phiên trong isolate nền bằng refresh token; ghi token mới vào secure storage
+/// (cùng key với ApiClient nên app chính dùng luôn). Trả access token mới hoặc null nếu thất bại.
+Future<String?> _refreshTokenNen(FlutterSecureStorage storage) async {
+  final refreshToken = await storage.read(key: 'refresh_token');
+  if (refreshToken == null || refreshToken.isEmpty) return null;
+  try {
+    final resp = await _taoDioNen().post('/api/auth/refresh', data: {'refreshToken': refreshToken});
+    final res = resp.data as Map<String, dynamic>;
+    final access = res['accessToken'] as String;
+    await storage.write(key: 'jwt_token', value: access);
+    await storage.write(key: 'refresh_token', value: res['refreshToken'] as String);
+    return access;
+  } on DioException catch (e) {
+    // Tài khoản đã đăng nhập trên máy khác → tắt chia sẻ + task nền, xoá phiên
+    if (SessionReplacedHandler.laBiThayThe(e.response?.statusCode, e.response?.headers.map, e.response?.data)) {
+      debugPrint('[VI_TRI] task nền: tài khoản đã đăng nhập trên máy khác');
+      await SessionReplacedHandler.xuLyNen();
+    } else {
+      debugPrint('[VI_TRI] task nền: làm mới phiên lỗi: $e');
+    }
+    return null;
+  } catch (e) {
+    debugPrint('[VI_TRI] task nền: làm mới phiên lỗi: $e');
+    return null;
+  }
 }

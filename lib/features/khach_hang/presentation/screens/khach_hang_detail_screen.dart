@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:quan_ly_gas_app/core/map/osm_tile_layer.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
@@ -484,11 +485,7 @@ class _KhachHangDetailScreenState
                       initialZoom: 15,
                     ),
                     children: [
-                      TileLayer(
-                        urlTemplate:
-                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                        userAgentPackageName: 'com.npc.quan_ly_gas',
-                      ),
+                      osmTileLayer(),
                       MarkerLayer(markers: [
                         Marker(
                           point: LatLng(kh.latitude!, kh.longitude!),

@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../domain/entities/lich_tuan_entity.dart';
 import '../models/lich_tuan_model.dart';
 
 class LichTuanRemoteDatasource {
@@ -15,23 +16,29 @@ class LichTuanRemoteDatasource {
   final Dio _dio;
   final _fmt = DateFormat('yyyy-MM-dd');
 
+  /// Lấy lịch theo loại: cá nhân → LichtuanNVJson (nvid); 1–4 → LichtuanJson (loai).
   Future<List<LichTuanModel>> fetchLichTuan({
     required DateTime start,
     required DateTime end,
+    required LichTuanLoai loai,
   }) async {
+    final isCaNhan = loai == LichTuanLoai.caNhan;
     final response = await _dio.get(
-      AppConstants.lichTuanApiUrl,
+      isCaNhan ? AppConstants.lichTuanApiUrl : AppConstants.lichTuanChungApiUrl,
       queryParameters: {
         'Madviqly': AppConstants.lichTuanMaDviqly,
         'start': _fmt.format(start),
         'end': _fmt.format(end),
-        'nvid': AppConstants.lichTuanNvid,
+        if (isCaNhan) 'nvid': AppConstants.lichTuanNvid else 'loai': loai.code,
         'xacthuc': AppConstants.lichTuanXacThuc,
       },
     );
-    final list = response.data as List<dynamic>;
-    return list
-        .map((e) => LichTuanModel.fromJson(e as Map<String, dynamic>))
-        .toList();
+    final list = (response.data as List<dynamic>?) ?? const [];
+    return list.map((e) {
+      final json = e as Map<String, dynamic>;
+      return loai == LichTuanLoai.xe
+          ? LichTuanModel.fromXeJson(json, rangeStart: start)
+          : LichTuanModel.fromJson(json);
+    }).toList();
   }
 }

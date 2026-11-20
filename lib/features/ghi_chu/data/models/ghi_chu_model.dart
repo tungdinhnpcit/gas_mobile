@@ -1,16 +1,25 @@
 // lib/features/ghi_chu/data/models/ghi_chu_model.dart
+import '../../../../core/constants/app_constants.dart';
 
 /// Ảnh đính kèm ghi chú — [url] là đường dẫn tương đối '/uploads/ghi-chu/...'.
 class GhiChuAnhModel {
   final int id;
   final String url;
   final DateTime? uploadedAt;
+  final String? thumbUrl; // ảnh thu nhỏ server sinh khi upload; null = ảnh cũ chưa có thumb
 
-  const GhiChuAnhModel({required this.id, required this.url, this.uploadedAt});
+  const GhiChuAnhModel({required this.id, required this.url, this.uploadedAt, this.thumbUrl});
+
+  /// URL đầy đủ của ảnh (static files serve từ server root).
+  String get fullUrl => '${AppConstants.staticBaseUrl}$url';
+
+  /// URL ảnh thu nhỏ để hiển thị trong danh sách/lưới; chưa có thumb thì dùng ảnh gốc.
+  String get thumbFullUrl => '${AppConstants.staticBaseUrl}${thumbUrl ?? url}';
 
   factory GhiChuAnhModel.fromJson(Map<String, dynamic> json) => GhiChuAnhModel(
         id: json['id'] as int,
         url: (json['url'] as String?) ?? '',
+        thumbUrl: json['thumbUrl'] as String?,
         uploadedAt: json['uploadedAt'] != null ? DateTime.tryParse(json['uploadedAt'] as String) : null,
       );
 }
@@ -30,6 +39,11 @@ class GhiChuModel {
   final DateTime? updatedAt;
   final bool laChuSoHuu;      // false = ghi chú được người khác chia sẻ (chỉ xem)
   final String? tenChuSoHuu;
+  final double? viDo;         // vĩ độ — null = chưa gắn vị trí
+  final double? kinhDo;       // kinh độ
+
+  /// Có đủ tọa độ để hiển thị/chỉ đường.
+  bool get coToaDo => viDo != null && kinhDo != null;
 
   const GhiChuModel({
     this.laChuSoHuu = true,
@@ -45,6 +59,8 @@ class GhiChuModel {
     this.anh = const [],
     this.createdAt,
     this.updatedAt,
+    this.viDo,
+    this.kinhDo,
   });
 
   factory GhiChuModel.fromJson(Map<String, dynamic> json) => GhiChuModel(
@@ -63,9 +79,11 @@ class GhiChuModel {
         updatedAt: json['updatedAt'] != null ? DateTime.tryParse(json['updatedAt'] as String) : null,
         laChuSoHuu: (json['laChuSoHuu'] as bool?) ?? true,
         tenChuSoHuu: json['tenChuSoHuu'] as String?,
+        viDo: (json['viDo'] as num?)?.toDouble(),
+        kinhDo: (json['kinhDo'] as num?)?.toDouble(),
       );
 
-  /// Tạo bản sao; [clearPhanLoai] = true để gỡ phân loại (copyWith không phân biệt null với "không đổi").
+  /// Tạo bản sao; [clearPhanLoai] = true để gỡ phân loại, [clearToaDo] = true để gỡ tọa độ (copyWith không phân biệt null với "không đổi").
   GhiChuModel copyWith({
     int? id,
     String? tieuDe,
@@ -75,6 +93,9 @@ class GhiChuModel {
     int? phanLoaiId,
     bool clearPhanLoai = false,
     List<GhiChuAnhModel>? anh,
+    double? viDo,
+    double? kinhDo,
+    bool clearToaDo = false,
   }) =>
       GhiChuModel(
         id: id ?? this.id,
@@ -90,6 +111,8 @@ class GhiChuModel {
         updatedAt: updatedAt,
         laChuSoHuu: laChuSoHuu,
         tenChuSoHuu: tenChuSoHuu,
+        viDo: clearToaDo ? null : (viDo ?? this.viDo),
+        kinhDo: clearToaDo ? null : (kinhDo ?? this.kinhDo),
       );
 }
 

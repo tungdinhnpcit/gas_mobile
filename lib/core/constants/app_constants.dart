@@ -30,6 +30,9 @@ class AppConstants {
       resolvedApiUrl.replaceFirst(RegExp(r'/(apimanager|apiv2)$'), '');
   static const String lichTuanApiUrl =
       'https://lichtuan.npc.com.vn/LT_WebAPI/api/PageBase/LichtuanNVJson';
+  // Lịch chung đơn vị: loai 1=lãnh đạo, 2=ban, 3=khác, 4=xe
+  static const String lichTuanChungApiUrl =
+      'https://lichtuan.npc.com.vn/LT_WebAPI/api/PageBase/LichtuanJson';
   static const String lichTuanMaDviqly = 'NPCIT';
   static const String lichTuanXacThuc = 'Auth';
   static const int lichTuanNvid = 1303;

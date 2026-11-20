@@ -1,6 +1,20 @@
 // lib/features/lich_tuan/domain/entities/lich_tuan_entity.dart
 import 'package:equatable/equatable.dart';
 
+/// Loại lịch tương ứng từng tab. `code` = tham số `loai` của API LichtuanJson;
+/// `caNhan` (code 0) dùng API riêng LichtuanNVJson theo nvid.
+enum LichTuanLoai {
+  caNhan(0, 'Của tôi'),
+  lanhDao(1, 'Lãnh đạo'),
+  ban(2, 'Của ban'),
+  khac(3, 'Khác'),
+  xe(4, 'Lịch xe');
+
+  const LichTuanLoai(this.code, this.label);
+  final int code;
+  final String label;
+}
+
 class LichTuanEntity extends Equatable {
   const LichTuanEntity({
     required this.lichtuanId,
@@ -16,6 +30,10 @@ class LichTuanEntity extends Equatable {
     required this.thayDoi,
     required this.isTruyenHinh,
     required this.tt,
+    this.dvChuanBi = '',
+    this.thanhPhanThamGia = '',
+    this.taiLieuHop = false,
+    this.chiTietXe = '',
   });
 
   final int lichtuanId;
@@ -31,7 +49,12 @@ class LichTuanEntity extends Equatable {
   final String thayDoi;
   final bool isTruyenHinh;
   final String tt;
+  final String dvChuanBi;
+  final String thanhPhanThamGia;
+  final bool taiLieuHop;
+  /// HTML chi tiết xe (biển số, lái xe, SĐT) — chỉ có ở lịch xe
+  final String chiTietXe;
 
   @override
-  List<Object?> get props => [lichtuanId];
+  List<Object?> get props => [lichtuanId, ngayGioBDBase];
 }

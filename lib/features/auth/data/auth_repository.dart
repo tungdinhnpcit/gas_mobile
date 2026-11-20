@@ -9,6 +9,7 @@ import '../../../core/network/login_crypto.dart';
 import '../../../core/services/background_polling_service.dart';
 import '../../vi_tri/services/chia_se_vi_tri_service.dart';
 import 'auth_models.dart';
+import 'biometric_service.dart';
 
 class AuthRepository {
   final _storage = const FlutterSecureStorage();
@@ -19,6 +20,8 @@ class AuthRepository {
     // cũ, backend vẫn hiểu (xem AuthService.LoginAsync, ưu tiên encryptedPassword
     // nếu có).
     final encrypted = encryptLoginPassword(password);
+    // Mã thiết bị bền → server biết là cùng máy hay máy khác (cơ chế 1 phiên mobile)
+    final deviceId = await BiometricService().getOrCreateDeviceId();
     final response = await ApiClient.instance.dio.post(
       '/api/auth/login',
       data: {
@@ -27,6 +30,7 @@ class AuthRepository {
         if (encrypted != null) 'encryptedPassword': encrypted.cipherBase64,
         if (encrypted != null) 'iv': encrypted.ivBase64,
         'deviceInfo': 'mobile',
+        'deviceId':   deviceId,
       },
     );
     debugPrint('[AUTH DEBUG] login raw response: ${response.data}');

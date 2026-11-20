@@ -6,7 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../../../../core/constants/app_constants.dart';
+import '../../../../core/utils/location_helper.dart';
+import '../../../../core/widgets/anh_gallery_viewer.dart';
 import '../../data/models/ghi_chu_model.dart';
 import '../../data/models/ghi_chu_phan_loai_model.dart';
 import '../providers/ghi_chu_provider.dart';
@@ -42,6 +43,9 @@ class _GhiChuFormScreenState extends ConsumerState<GhiChuFormScreen> {
   bool _obscure = true;
   bool _saving = false;
   int _uploading = 0; // số ảnh đang upload
+  double? _viDo;
+  double? _kinhDo;
+  bool _dangLayToaDo = false;
 
   bool get _isEdit => _id != null;
   bool get _readOnly => widget.item?.laChuSoHuu == false; // ghi chú được chia sẻ → chỉ xem
@@ -52,6 +56,8 @@ class _GhiChuFormScreenState extends ConsumerState<GhiChuFormScreen> {
     _id = widget.item?.id;
     _phanLoaiId = widget.item?.phanLoaiId;
     _anh = [...?widget.item?.anh];
+    _viDo = widget.item?.viDo;
+    _kinhDo = widget.item?.kinhDo;
     _tieuDeCtrl = TextEditingController(text: widget.item?.tieuDe ?? '');
     _taiKhoanCtrl = TextEditingController(text: widget.item?.taiKhoan ?? '');
     _matKhauCtrl = TextEditingController(text: widget.item?.matKhau ?? '');
@@ -87,6 +93,8 @@ class _GhiChuFormScreenState extends ConsumerState<GhiChuFormScreen> {
             matKhau: _matKhauCtrl.text,
             ghiChu: _ghiChuCtrl.text.trim(),
             phanLoaiId: _phanLoaiId,
+            viDo: _viDo,
+            kinhDo: _kinhDo,
           ),
         );
     if (mounted) setState(() => _id = saved.id);
@@ -304,32 +312,107 @@ class _GhiChuFormScreenState extends ConsumerState<GhiChuFormScreen> {
   }
 
   /// Xem ảnh toàn màn hình, vuốt ngang giữa các ảnh, pinch-zoom.
-  void _xemAnh(int index) {
-    showDialog<void>(
-      context: context,
-      barrierColor: Colors.black,
-      builder: (ctx) => Stack(
+  void _xemAnh(int index) =>
+      xemDanhSachAnh(context, _anh.map((a) => a.fullUrl).toList(), batDau: index);
+
+  bool get _coToaDo => _viDo != null && _kinhDo != null;
+
+  String get _toaDoText => '${_viDo!.toStringAsFixed(6)}, ${_kinhDo!.toStringAsFixed(6)}';
+
+  /// Lấy tọa độ GPS hiện tại gán vào ghi chú (chưa lưu server — lưu khi bấm Lưu).
+  /// Lỗi GPS tắt / từ chối quyền → SnackBar có nút mở Cài đặt.
+  Future<void> _layToaDo() async {
+    setState(() => _dangLayToaDo = true);
+    try {
+      final pos = await LocationHelper.layViTriHienTai();
+      if (!mounted) return;
+      setState(() {
+        _viDo = double.parse(pos.latitude.toStringAsFixed(6));
+        _kinhDo = double.parse(pos.longitude.toStringAsFixed(6));
+      });
+      _toast('Đã lấy tọa độ (sai số ~${pos.accuracy.round()}m) — bấm Lưu để ghi nhận');
+    } on LocationException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(e.message),
+        action: e.moCaiDat ? SnackBarAction(label: 'Cài đặt', onPressed: LocationHelper.moCaiDat) : null,
+      ));
+    } catch (_) {
+      _toast('Không lấy được vị trí, vui lòng thử lại');
+    } finally {
+      if (mounted) setState(() => _dangLayToaDo = false);
+    }
+  }
+
+  /// Mở Google Maps chỉ đường tới tọa độ của ghi chú.
+  Future<void> _chiDuong() async {
+    if (!_coToaDo) return;
+    final ok = await LocationHelper.moChiDuong(_viDo!, _kinhDo!);
+    if (!ok) _toast('Không mở được Google Maps');
+  }
+
+  Future<void> _copyToaDo() async {
+    await Clipboard.setData(ClipboardData(text: _toaDoText));
+    _toast('Đã sao chép tọa độ');
+  }
+
+  /// Section "Vị trí": chưa có tọa độ → nút Lấy tọa độ; đã có → hiển thị tọa độ + Chỉ đường
+  /// (+ Lấy lại / Xoá nếu là chủ sở hữu). Ghi chú được chia sẻ chỉ xem + chỉ đường.
+  Widget _buildViTri() {
+    final loading = const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2));
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade400),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          PageView.builder(
-            controller: PageController(initialPage: index),
-            itemCount: _anh.length,
-            itemBuilder: (_, i) => InteractiveViewer(
-              maxScale: 5,
-              child: Center(
-                child: CachedNetworkImage(
-                  imageUrl: '${AppConstants.staticBaseUrl}${_anh[i].url}',
-                  placeholder: (_, __) => const CircularProgressIndicator(),
-                  errorWidget: (_, __, ___) => const Icon(Icons.broken_image, color: Colors.white, size: 48),
+          Row(children: [
+            const Icon(Icons.place_outlined, size: 20),
+            const SizedBox(width: 6),
+            Text('Vị trí', style: Theme.of(context).textTheme.titleSmall),
+          ]),
+          const SizedBox(height: 8),
+          if (!_coToaDo)
+            _readOnly
+                ? const Text('Chưa có tọa độ', style: TextStyle(color: Colors.grey))
+                : OutlinedButton.icon(
+                    onPressed: _dangLayToaDo ? null : _layToaDo,
+                    icon: _dangLayToaDo ? loading : const Icon(Icons.my_location),
+                    label: Text(_dangLayToaDo ? 'Đang lấy tọa độ...' : 'Lấy tọa độ'),
+                  )
+          else ...[
+            Row(children: [
+              Expanded(child: SelectableText(_toaDoText, style: const TextStyle(fontFamily: 'monospace'))),
+              IconButton(icon: const Icon(Icons.copy, size: 20), tooltip: 'Sao chép', onPressed: _copyToaDo),
+            ]),
+            const SizedBox(height: 4),
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                FilledButton.tonalIcon(
+                  onPressed: _chiDuong,
+                  icon: const Icon(Icons.directions),
+                  label: const Text('Chỉ đường'),
                 ),
-              ),
+                if (!_readOnly) ...[
+                  OutlinedButton.icon(
+                    onPressed: _dangLayToaDo ? null : _layToaDo,
+                    icon: _dangLayToaDo ? loading : const Icon(Icons.my_location),
+                    label: const Text('Lấy lại'),
+                  ),
+                  TextButton.icon(
+                    onPressed: _dangLayToaDo ? null : () => setState(() { _viDo = null; _kinhDo = null; }),
+                    icon: const Icon(Icons.location_off_outlined, color: Colors.red),
+                    label: const Text('Xoá', style: TextStyle(color: Colors.red)),
+                  ),
+                ],
+              ],
             ),
-          ),
-          SafeArea(
-            child: IconButton(
-              icon: const Icon(Icons.close, color: Colors.white),
-              onPressed: () => Navigator.pop(ctx),
-            ),
-          ),
+          ],
         ],
       ),
     );
@@ -389,7 +472,9 @@ class _GhiChuFormScreenState extends ConsumerState<GhiChuFormScreen> {
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: CachedNetworkImage(
-                  imageUrl: '${AppConstants.staticBaseUrl}${_anh[i].url}',
+                  imageUrl: _anh[i].thumbFullUrl,
+                  memCacheWidth: 300, // ô lưới 3 cột ~120dp × DPR — không decode ảnh gốc
+                  fadeInDuration: Duration.zero,
                   fit: BoxFit.cover,
                   placeholder: (_, __) => Container(color: Colors.grey.shade200),
                   errorWidget: (_, __, ___) => const Icon(Icons.broken_image),
@@ -457,7 +542,7 @@ class _GhiChuFormScreenState extends ConsumerState<GhiChuFormScreen> {
   @override
   Widget build(BuildContext context) {
     final phanLoais = ref.watch(ghiChuPhanLoaiProvider).valueOrNull ?? const <GhiChuPhanLoaiModel>[];
-    final busy = _saving || _uploading > 0;
+    final busy = _saving || _uploading > 0 || _dangLayToaDo;
 
     // Màn hình này ở root navigator → Scaffold + AppBar phải tự vẽ (xem app_router.dart).
     return Scaffold(
@@ -559,6 +644,8 @@ class _GhiChuFormScreenState extends ConsumerState<GhiChuFormScreen> {
               ),
             ),
             const SizedBox(height: 8),
+            _buildViTri(),
+            const SizedBox(height: 16),
             _buildAnh(),
           ],
         ),

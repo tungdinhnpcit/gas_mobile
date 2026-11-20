@@ -10,6 +10,7 @@ import 'package:timezone/data/latest.dart' as tz_data;
 import '../constants/app_constants.dart';
 import '../constants/notification_types.dart';
 import '../router/app_routes.dart';
+import 'session_replaced_handler.dart';
 import '../../features/lich_tuan/domain/entities/lich_tuan_entity.dart';
 
 class NotificationService {
@@ -51,6 +52,11 @@ class NotificationService {
 
     // Foreground: show heads-up notification manually (FCM does not show it)
     FirebaseMessaging.onMessage.listen((message) {
+      // Đăng nhập trên máy khác → đăng xuất máy này ngay (app đang mở)
+      if (message.data['loai'] == NotificationTypes.sessionReplaced) {
+        SessionReplacedHandler.xuLy();
+        return;
+      }
       showLocalNotification(message);
     });
 

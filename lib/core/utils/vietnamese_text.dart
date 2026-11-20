@@ -17,5 +17,12 @@ String removeDiacritics(String s) {
     'ỳ': 'y', 'ý': 'y', 'ỷ': 'y', 'ỹ': 'y', 'ỵ': 'y',
     'đ': 'd', 'ñ': 'n', 'ç': 'c',
   };
-  return s.toLowerCase().split('').map((c) => diacriticsMap[c] ?? c).join();
+  // Duyệt từng ký tự ghi vào StringBuffer — tránh tạo List trung gian của split/map/join
+  final lower = s.toLowerCase();
+  final buf = StringBuffer();
+  for (var i = 0; i < lower.length; i++) {
+    final c = lower[i];
+    buf.write(diacriticsMap[c] ?? c);
+  }
+  return buf.toString();
 }

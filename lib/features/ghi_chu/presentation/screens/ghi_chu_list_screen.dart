@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/router/app_routes.dart';
+import '../../../../core/widgets/anh_gallery_viewer.dart';
 import '../../../../core/utils/vietnamese_text.dart';
 import '../../data/models/ghi_chu_model.dart';
 import '../../data/models/ghi_chu_phan_loai_model.dart';
@@ -65,6 +66,9 @@ class _GhiChuListScreenState extends ConsumerState<GhiChuListScreen> {
     }
   }
 
+  /// Mở xem toàn bộ ảnh đính kèm của ghi chú.
+  void _xemAnh(GhiChuModel item) => xemDanhSachAnh(context, item.anh.map((a) => a.fullUrl).toList());
+
   /// Mở xem ghi chú được chia sẻ (chỉ xem); quay về thì tải lại tab chia sẻ.
   Future<void> _openShared(GhiChuModel item) async {
     await context.push(AppRoutes.ghiChuForm, extra: item);
@@ -86,20 +90,27 @@ class _GhiChuListScreenState extends ConsumerState<GhiChuListScreen> {
 
   void _onSearchChanged(String value) {
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 1000), () {
-      setState(() => _filterQuery = removeDiacritics(value.trim()));
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      if (mounted) setState(() => _filterQuery = removeDiacritics(value.trim()));
     });
   }
 
+  // Chuỗi không dấu (tiêu đề|tài khoản|ghi chú) gắn theo từng object ghi chú — chỉ tính 1 lần / bản ghi
+  static final _searchText = Expando<String>();
+  // Cache kết quả lọc gần nhất theo (list nguồn, từ khoá) — setState chọn nhiều không lọc lại
+  List<GhiChuModel>? _cacheSrc;
+  String? _cacheQuery;
+  List<GhiChuModel> _cacheResult = const [];
+
+  /// Lọc danh sách theo từ khoá không dấu; dùng lại kết quả nếu nguồn và từ khoá không đổi.
   List<GhiChuModel> _applyFilter(List<GhiChuModel> allItems) {
     if (_filterQuery.isEmpty) return allItems;
-    return allItems.where((g) {
-      final t = removeDiacritics(g.tieuDe);
-      final a = removeDiacritics(g.taiKhoan);
-      final c = removeDiacritics(g.ghiChu);
-      return t.contains(_filterQuery) ||
-          a.contains(_filterQuery) ||
-          c.contains(_filterQuery);
+    if (identical(allItems, _cacheSrc) && _cacheQuery == _filterQuery) return _cacheResult;
+    _cacheSrc = allItems;
+    _cacheQuery = _filterQuery;
+    return _cacheResult = allItems.where((g) {
+      final s = _searchText[g] ??= removeDiacritics('${g.tieuDe}\n${g.taiKhoan}\n${g.ghiChu}');
+      return s.contains(_filterQuery);
     }).toList();
   }
 
@@ -246,7 +257,20 @@ class _GhiChuListScreenState extends ConsumerState<GhiChuListScreen> {
                   child: ListView.builder(
                     padding: const EdgeInsets.fromLTRB(12, 0, 12, 88),
                     itemCount: items.length,
-                    itemBuilder: (context, i) => _buildItem(items[i]),
+                    itemBuilder: (context, i) {
+                      final item = items[i];
+                      return _GhiChuItem(
+                        key: ValueKey(item.id),
+                        item: item,
+                        selecting: _selecting,
+                        checked: _selected.contains(item.id),
+                        onToggleSelect: () => _toggleSelect(item),
+                        onOpen: () => _openForm(item),
+                        onXemAnh: () => _xemAnh(item),
+                        onShare: () => showChiaSeSheet(context, item.id!, item.tieuDe),
+                        onDelete: () => _xoa(item),
+                      );
+                    },
                   ),
                 );
               },
@@ -291,22 +315,11 @@ class _GhiChuListScreenState extends ConsumerState<GhiChuListScreen> {
                   itemCount: items.length,
                   itemBuilder: (_, i) {
                     final item = items[i];
-                    return Card(
-                      margin: const EdgeInsets.symmetric(vertical: 4),
-                      child: ListTile(
-                        leading: const CircleAvatar(child: Icon(Icons.people_outline)),
-                        title: Text(item.tieuDe, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (item.taiKhoan.isNotEmpty) Text(item.taiKhoan),
-                            Text('Từ: ${item.tenChuSoHuu ?? ''}',
-                                style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                          ],
-                        ),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () => _openShared(item),
-                      ),
+                    return _SharedItem(
+                      key: ValueKey(item.id),
+                      item: item,
+                      onOpen: () => _openShared(item),
+                      onXemAnh: () => _xemAnh(item),
                     );
                   },
                 ),
@@ -314,82 +327,134 @@ class _GhiChuListScreenState extends ConsumerState<GhiChuListScreen> {
       },
     );
   }
+}
 
-  /// Card 1 ghi chú: icon màu phân loại, tiêu đề, tài khoản, badge phân loại + số ảnh.
-  Widget _buildItem(GhiChuModel item) {
+/// Item ghi chú được chia sẻ (chỉ xem) — widget riêng để Flutter chỉ dựng lại item thay đổi.
+class _SharedItem extends StatelessWidget {
+  final GhiChuModel item;
+  final VoidCallback onOpen;
+  final VoidCallback onXemAnh;
+  const _SharedItem({super.key, required this.item, required this.onOpen, required this.onXemAnh});
+
+  @override
+  Widget build(BuildContext context) {
+    return RepaintBoundary(
+      child: Card(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        child: ListTile(
+          leading: item.anh.isEmpty
+              ? const CircleAvatar(child: Icon(Icons.people_outline))
+              : AnhThumbnail(url: item.anh.first.thumbFullUrl, onTap: onXemAnh),
+          title: Text(item.tieuDe, style: const TextStyle(fontWeight: FontWeight.bold)),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (item.taiKhoan.isNotEmpty) Text(item.taiKhoan),
+              Text('Từ: ${item.tenChuSoHuu ?? ''}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            ],
+          ),
+          trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+            if (item.anh.isNotEmpty) XemAnhButton(soAnh: item.anh.length, onPressed: onXemAnh),
+            const Icon(Icons.chevron_right),
+          ]),
+          onTap: onOpen,
+        ),
+      ),
+    );
+  }
+}
+
+/// Card 1 ghi chú của tôi: thumbnail/icon màu phân loại, tiêu đề, tài khoản, badge phân loại, menu thao tác.
+class _GhiChuItem extends StatelessWidget {
+  final GhiChuModel item;
+  final bool selecting;
+  final bool checked;
+  final VoidCallback onToggleSelect;
+  final VoidCallback onOpen;
+  final VoidCallback onXemAnh;
+  final VoidCallback onShare;
+  final VoidCallback onDelete;
+
+  const _GhiChuItem({
+    super.key,
+    required this.item,
+    required this.selecting,
+    required this.checked,
+    required this.onToggleSelect,
+    required this.onOpen,
+    required this.onXemAnh,
+    required this.onShare,
+    required this.onDelete,
+  });
+
+  static const _menuItems = [
+    PopupMenuItem(value: 'share', child: ListTile(
+        leading: Icon(Icons.share_outlined), title: Text('Chia sẻ'), contentPadding: EdgeInsets.zero)),
+    PopupMenuItem(value: 'edit', child: ListTile(
+        leading: Icon(Icons.edit_outlined), title: Text('Sửa'), contentPadding: EdgeInsets.zero)),
+    PopupMenuItem(value: 'select', child: ListTile(
+        leading: Icon(Icons.checklist), title: Text('Chọn nhiều'), contentPadding: EdgeInsets.zero)),
+    PopupMenuItem(value: 'delete', child: ListTile(
+        leading: Icon(Icons.delete_outline, color: Colors.red),
+        title: Text('Xoá', style: TextStyle(color: Colors.red)), contentPadding: EdgeInsets.zero)),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
     final color = item.phanLoaiId != null ? phanLoaiColor(item.mauPhanLoai) : null;
-    final checked = _selected.contains(item.id);
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      color: checked ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5) : null,
-      child: ListTile(
-        onLongPress: () => _toggleSelect(item),
-        leading: _selecting
-            ? Checkbox(value: checked, onChanged: (_) => _toggleSelect(item))
-            : CircleAvatar(
-                backgroundColor: color?.withValues(alpha: 0.15),
-                child: Icon(Icons.sticky_note_2_outlined, color: color),
-              ),
-        title: Text(
-          item.tieuDe,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (item.taiKhoan.isNotEmpty) Text(item.taiKhoan),
-            if (item.tenPhanLoai != null || item.anh.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Row(
-                  children: [
-                    if (item.tenPhanLoai != null)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        margin: const EdgeInsets.only(right: 8),
-                        decoration: BoxDecoration(
-                          color: color!.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(item.tenPhanLoai!, style: TextStyle(fontSize: 12, color: color)),
-                      ),
-                    if (item.anh.isNotEmpty) ...[
-                      const Icon(Icons.attach_file, size: 14, color: Colors.grey),
-                      Text('${item.anh.length}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                    ],
-                  ],
+    return RepaintBoundary(
+      child: Card(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        color: checked ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5) : null,
+        child: ListTile(
+          onLongPress: onToggleSelect,
+          leading: selecting
+              ? Checkbox(value: checked, onChanged: (_) => onToggleSelect())
+              : item.anh.isNotEmpty
+                  ? AnhThumbnail(url: item.anh.first.thumbFullUrl, onTap: onXemAnh)
+                  : CircleAvatar(
+                      backgroundColor: color?.withValues(alpha: 0.15),
+                      child: Icon(Icons.sticky_note_2_outlined, color: color),
+                    ),
+          title: Text(item.tieuDe, style: const TextStyle(fontWeight: FontWeight.bold)),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (item.taiKhoan.isNotEmpty) Text(item.taiKhoan),
+              if (item.tenPhanLoai != null && color != null)
+                Container(
+                  margin: const EdgeInsets.only(top: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(item.tenPhanLoai!, style: TextStyle(fontSize: 12, color: color)),
                 ),
-              ),
-          ],
+            ],
+          ),
+          trailing: selecting
+              ? null
+              : Row(mainAxisSize: MainAxisSize.min, children: [
+                  if (item.anh.isNotEmpty) XemAnhButton(soAnh: item.anh.length, onPressed: onXemAnh),
+                  PopupMenuButton<String>(
+                    onSelected: (v) {
+                      switch (v) {
+                        case 'share':
+                          onShare();
+                        case 'edit':
+                          onOpen();
+                        case 'select':
+                          onToggleSelect();
+                        case 'delete':
+                          onDelete();
+                      }
+                    },
+                    itemBuilder: (_) => _menuItems,
+                  ),
+                ]),
+          onTap: selecting ? onToggleSelect : onOpen,
         ),
-        trailing: _selecting
-            ? null
-            : PopupMenuButton<String>(
-                onSelected: (v) {
-                  switch (v) {
-                    case 'share':
-                      showChiaSeSheet(context, item.id!, item.tieuDe);
-                    case 'edit':
-                      _openForm(item);
-                    case 'select':
-                      _toggleSelect(item);
-                    case 'delete':
-                      _xoa(item);
-                  }
-                },
-                itemBuilder: (_) => const [
-                  PopupMenuItem(value: 'share', child: ListTile(
-                      leading: Icon(Icons.share_outlined), title: Text('Chia sẻ'), contentPadding: EdgeInsets.zero)),
-                  PopupMenuItem(value: 'edit', child: ListTile(
-                      leading: Icon(Icons.edit_outlined), title: Text('Sửa'), contentPadding: EdgeInsets.zero)),
-                  PopupMenuItem(value: 'select', child: ListTile(
-                      leading: Icon(Icons.checklist), title: Text('Chọn nhiều'), contentPadding: EdgeInsets.zero)),
-                  PopupMenuItem(value: 'delete', child: ListTile(
-                      leading: Icon(Icons.delete_outline, color: Colors.red),
-                      title: Text('Xoá', style: TextStyle(color: Colors.red)), contentPadding: EdgeInsets.zero)),
-                ],
-              ),
-        onTap: () => _selecting ? _toggleSelect(item) : _openForm(item),
       ),
     );
   }

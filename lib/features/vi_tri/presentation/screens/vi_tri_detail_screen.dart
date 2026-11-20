@@ -1,6 +1,7 @@
 // lib/features/vi_tri/presentation/screens/vi_tri_detail_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:quan_ly_gas_app/core/map/osm_tile_layer.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
@@ -102,10 +103,7 @@ class _ViTriDetailScreenState extends ConsumerState<ViTriDetailScreen> {
                 mapController: _map,
                 options: MapOptions(initialCenter: v.latLng, initialZoom: 16),
                 children: [
-                  TileLayer(
-                    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    userAgentPackageName: 'com.npc.quan_ly_gas',
-                  ),
+                  osmTileLayer(),
                   if (v.doChinhXac != null && v.doChinhXac! > 0)
                     CircleLayer(circles: [
                       CircleMarker(

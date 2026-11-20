@@ -15,6 +15,7 @@ import '../../features/ghi_chu/data/models/ghi_chu_phan_loai_model.dart';
 import '../../features/ghi_chu/presentation/screens/gan_ghi_chu_phan_loai_screen.dart';
 import '../../features/than_so_hoc/presentation/screens/than_so_hoc_screen.dart'; // man hinh than so hoc
 import '../network/api_client.dart'; // client goi API, xu ly redirect khi het han token
+import '../services/session_replaced_handler.dart'; // xu ly bi dang xuat do dang nhap may khac
 import '../../features/auth/presentation/screens/login_screen.dart'; // man hinh dang nhap (thiet ke moi theo Figma)
 import '../../features/home/presentation/screens/home_screen.dart'; // man hinh trang chu
 import '../../features/chuyen_xe/presentation/screens/chuyen_xe_detail_screen.dart'; // chi tiet chuyen xe
@@ -636,6 +637,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   });
   ApiClient.setNavigateToLogin((route) => router.go(route)); // dang ky callback chuyen sang login khi token het han (401)
   ApiClient.setOnWafBlocked(_showWafBlockedDialog); // hiện popup khi request bị F5 WAF chặn
+  SessionReplacedHandler.setNavigateToLogin((route) => router.go(route)); // bi dang xuat do dang nhap may khac
 
   return router;
 });
@@ -679,7 +681,12 @@ class _MainShellState extends ConsumerState<_MainShell> with WidgetsBindingObser
   // app quay lai foreground -> dong bo lai danh muc (co throttle 5 phut)
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _syncCatalog();
+    if (state == AppLifecycleState.resumed) {
+      _syncCatalog();
+      // Mo lai app → khoi dong lai chia se vi tri + gui ngay (ROM co the da giet stream o nen)
+      ChiaSeViTriService.instance.khoiDongLai().catchError(
+          (e) => debugPrint('[VI_TRI] khoi dong lai loi: $e'));
+    }
   }
 
   // dong bo cache danh muc (mat hang, khach hang, xe...) tu server ve SQLite.

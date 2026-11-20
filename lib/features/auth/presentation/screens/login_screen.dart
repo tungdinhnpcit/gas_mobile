@@ -16,6 +16,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../../core/providers/user_info_provider.dart';
 import '../../../../core/router/app_routes.dart';
+import '../../../../core/services/session_replaced_handler.dart';
 import '../../../../features/menu/providers/menu_provider.dart';
 import '../../../../features/thong_bao/presentation/providers/thong_bao_provider.dart';
 import '../../data/auth_repository.dart';
@@ -60,6 +61,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
     _checkBiometric();
     _loadVersion();
+    _baoBiDangXuat();
+  }
+
+  /// Nếu vừa bị đăng xuất do tài khoản đăng nhập trên điện thoại khác → hiện thông báo.
+  Future<void> _baoBiDangXuat() async {
+    if (!await SessionReplacedHandler.layVaXoaCo() || !mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          icon: const Icon(Icons.phonelink_lock, color: Colors.orange, size: 40),
+          title: const Text('Đã đăng xuất'),
+          content: const Text(SessionReplacedHandler.thongBao, textAlign: TextAlign.center),
+          actions: [
+            FilledButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Đóng')),
+          ],
+        ),
+      );
+    });
   }
 
   Future<void> _loadVersion() async {

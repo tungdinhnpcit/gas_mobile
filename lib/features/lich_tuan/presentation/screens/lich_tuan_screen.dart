@@ -8,6 +8,8 @@ import '../../../../core/services/notification_service.dart';
 import '../../domain/entities/lich_tuan_entity.dart';
 import '../providers/lich_tuan_provider.dart';
 
+/// Màn Lịch tuần (nằm trong ShellRoute — AppBar do _MainShell cung cấp).
+/// Gồm thanh chọn tuần + 5 tab: Của tôi, Lãnh đạo, Của ban, Khác, Lịch xe.
 class LichTuanScreen extends ConsumerStatefulWidget {
   const LichTuanScreen({super.key});
 
@@ -16,176 +18,234 @@ class LichTuanScreen extends ConsumerStatefulWidget {
 }
 
 class _LichTuanScreenState extends ConsumerState<LichTuanScreen> {
-  final _dayFmt = DateFormat('EEEE, dd/MM/yyyy', 'vi');
-  final _today = DateTime(
-    DateTime.now().year,
-    DateTime.now().month,
-    DateTime.now().day,
-  );
+  final _rangeFmt = DateFormat('dd/MM');
+  final _yearFmt = DateFormat('dd/MM/yyyy');
 
   @override
   void initState() {
     super.initState();
-    Future.microtask(() => ref.read(lichTuanProvider.notifier).loadCurrentMonth());
-    // Schedule reminders after data loads
-    ref.listenManual(lichTuanProvider, (_, next) {
-      next.whenData((list) {
-        NotificationService.scheduleWeeklyScheduleReminders(list);
-      });
+    // Chỉ lên nhắc lịch cho lịch cá nhân — lịch chung đơn vị không nhắc
+    ref.listenManual(lichTuanProvider(LichTuanLoai.caNhan), (_, next) {
+      next.whenData(NotificationService.scheduleWeeklyScheduleReminders);
     });
   }
 
+  /// Dịch khoảng đang xem sang tuần trước/sau theo số tuần [delta]
+  void _shiftWeek(int delta) {
+    final cur = ref.read(lichTuanRangeProvider);
+    ref.read(lichTuanRangeProvider.notifier).state =
+        weekOf(cur.start.add(Duration(days: 7 * delta)));
+  }
+
+  /// Mở hộp chọn khoảng ngày tuỳ ý
   Future<void> _pickDateRange() async {
     final now = DateTime.now();
     final picked = await showDateRangePicker(
       context: context,
       firstDate: DateTime(now.year - 1),
-      lastDate: DateTime(now.year + 1),
-      initialDateRange: DateTimeRange(
-        start: DateTime(now.year, now.month, 1),
-        end: DateTime(now.year, now.month + 1, 0),
-      ),
+      lastDate: DateTime(now.year + 1, 12, 31),
+      initialDateRange: ref.read(lichTuanRangeProvider),
       locale: const Locale('vi'),
     );
     if (picked != null) {
-      ref
-          .read(lichTuanProvider.notifier)
-          .fetch(start: picked.start, end: picked.end);
+      ref.read(lichTuanRangeProvider.notifier).state = picked;
     }
   }
 
-  bool _isToday(DateTime date) =>
-      date.year == _today.year &&
-      date.month == _today.month &&
-      date.day == _today.day;
-
   @override
   Widget build(BuildContext context) {
-    final groupedAsync = ref.watch(lichTuanGroupedProvider);
-    final colorScheme = Theme.of(context).colorScheme;
+    final range = ref.watch(lichTuanRangeProvider);
+    final cs = Theme.of(context).colorScheme;
+    final isThisWeek = range.start == weekOf(DateTime.now()).start &&
+        range.end == weekOf(DateTime.now()).end;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Lịch tuần'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.calendar_month),
-            tooltip: 'Chọn khoảng thời gian',
-            onPressed: _pickDateRange,
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Tải lại',
-            onPressed: () => ref.read(lichTuanProvider.notifier).refresh(),
-          ),
-        ],
-      ),
-      body: groupedAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.error_outline, size: 48, color: Colors.red),
-              const SizedBox(height: 8),
-              Text('Không tải được lịch tuần\n$e',
-                  textAlign: TextAlign.center),
-              const SizedBox(height: 12),
-              ElevatedButton(
-                onPressed: () =>
-                    ref.read(lichTuanProvider.notifier).refresh(),
-                child: const Text('Thử lại'),
-              ),
-            ],
-          ),
-        ),
-        data: (grouped) {
-          if (grouped.isEmpty) {
-            return const Center(child: Text('Không có lịch trong khoảng thời gian này'));
-          }
-          final dates = grouped.keys.toList()..sort();
-          return ListView.builder(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: dates.length,
-            itemBuilder: (context, index) {
-              final date = dates[index];
-              final events = grouped[date]!;
-              final isToday = _isToday(date);
-
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Date header
-                  Container(
-                    width: double.infinity,
-                    margin: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: isToday
-                          ? colorScheme.primaryContainer
-                          : colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        if (isToday) ...[
-                          Icon(Icons.today,
-                              size: 18,
-                              color: colorScheme.onPrimaryContainer),
+    return DefaultTabController(
+      length: LichTuanLoai.values.length,
+      child: Column(
+        children: [
+          // Thanh chọn tuần
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 4, 4, 0),
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.chevron_left),
+                  tooltip: 'Tuần trước',
+                  onPressed: () => _shiftWeek(-1),
+                ),
+                Expanded(
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: _pickDateRange,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.calendar_month,
+                              size: 18, color: cs.primary),
                           const SizedBox(width: 6),
-                        ],
-                        Text(
-                          _dayFmt.format(date).toUpperCase(),
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                            color: isToday
-                                ? colorScheme.onPrimaryContainer
-                                : colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                        if (isToday) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: colorScheme.primary,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              'Hôm nay',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: colorScheme.onPrimary,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
+                          Text(
+                            '${_rangeFmt.format(range.start)} – ${_yearFmt.format(range.end)}',
+                            style: const TextStyle(fontWeight: FontWeight.w600),
                           ),
                         ],
-                      ],
+                      ),
                     ),
                   ),
-                  // Events for this date
-                  ...events.map((e) => _EventCard(
-                        event: e,
-                        isToday: isToday,
-                      )),
-                ],
-              );
-            },
-          );
-        },
+                ),
+                if (!isThisWeek)
+                  TextButton(
+                    onPressed: () => ref
+                        .read(lichTuanRangeProvider.notifier)
+                        .state = weekOf(DateTime.now()),
+                    child: const Text('Tuần này'),
+                  ),
+                IconButton(
+                  icon: const Icon(Icons.chevron_right),
+                  tooltip: 'Tuần sau',
+                  onPressed: () => _shiftWeek(1),
+                ),
+              ],
+            ),
+          ),
+          TabBar(
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
+            tabs: [for (final l in LichTuanLoai.values) Tab(text: l.label)],
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                for (final l in LichTuanLoai.values) _LichTuanList(loai: l),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
+/// Danh sách lịch của một tab, nhóm theo ngày, có kéo xuống để làm mới
+class _LichTuanList extends ConsumerWidget {
+  const _LichTuanList({required this.loai});
+  final LichTuanLoai loai;
+
+  static final _dayFmt = DateFormat('EEEE, dd/MM/yyyy', 'vi');
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final groupedAsync = ref.watch(lichTuanGroupedProvider(loai));
+    final cs = Theme.of(context).colorScheme;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    Future<void> refresh() => ref.refresh(lichTuanProvider(loai).future);
+
+    return groupedAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, size: 48, color: Colors.red),
+              const SizedBox(height: 8),
+              Text('Không tải được lịch\n$e', textAlign: TextAlign.center),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: () => ref.invalidate(lichTuanProvider(loai)),
+                child: const Text('Thử lại'),
+              ),
+            ],
+          ),
+        ),
+      ),
+      data: (grouped) {
+        final dates = grouped.keys.toList()..sort();
+        return RefreshIndicator(
+          onRefresh: refresh,
+          child: dates.isEmpty
+              ? ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  children: const [
+                    SizedBox(height: 120),
+                    Center(child: Text('Không có lịch trong khoảng thời gian này')),
+                  ],
+                )
+              : ListView.builder(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  itemCount: dates.length,
+                  itemBuilder: (context, index) {
+                    final date = dates[index];
+                    final events = grouped[date]!;
+                    final isToday = date == today;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: isToday
+                                ? cs.primaryContainer
+                                : cs.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              if (isToday) ...[
+                                Icon(Icons.today,
+                                    size: 18, color: cs.onPrimaryContainer),
+                                const SizedBox(width: 6),
+                              ],
+                              Text(
+                                _dayFmt.format(date).toUpperCase(),
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  color: isToday
+                                      ? cs.onPrimaryContainer
+                                      : cs.onSurfaceVariant,
+                                ),
+                              ),
+                              const Spacer(),
+                              Text('${events.length} lịch',
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      color: isToday
+                                          ? cs.onPrimaryContainer
+                                          : cs.onSurfaceVariant)),
+                            ],
+                          ),
+                        ),
+                        ...events.map((e) => _EventCard(
+                              event: e,
+                              isToday: isToday,
+                              isXe: loai == LichTuanLoai.xe,
+                            )),
+                      ],
+                    );
+                  },
+                ),
+        );
+      },
+    );
+  }
+}
+
+/// Thẻ một sự kiện lịch — bấm để mở rộng xem chi tiết
 class _EventCard extends StatefulWidget {
-  const _EventCard({required this.event, required this.isToday});
+  const _EventCard(
+      {required this.event, required this.isToday, required this.isXe});
   final LichTuanEntity event;
   final bool isToday;
+  final bool isXe;
 
   @override
   State<_EventCard> createState() => _EventCardState();
@@ -193,12 +253,6 @@ class _EventCard extends StatefulWidget {
 
 class _EventCardState extends State<_EventCard> {
   bool _expanded = false;
-
-  Color _statusColor(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    if (widget.isToday) return cs.primaryContainer;
-    return cs.surfaceContainerLow;
-  }
 
   String _ttLabel(String tt) {
     switch (tt) {
@@ -213,19 +267,59 @@ class _EventCardState extends State<_EventCard> {
     }
   }
 
+  /// Dòng thông tin nhỏ có icon
+  Widget _infoRow(IconData icon, String text, {int? maxLines = 1}) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 14, color: cs.outline),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Text(
+              text,
+              style: Theme.of(context).textTheme.bodySmall,
+              maxLines: _expanded ? null : maxLines,
+              overflow: _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Khối nhãn + nội dung khi mở rộng
+  Widget _section(String label, String value) => Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Text.rich(TextSpan(children: [
+          TextSpan(
+              text: '$label: ',
+              style: const TextStyle(fontWeight: FontWeight.bold)),
+          TextSpan(text: value),
+        ]), style: Theme.of(context).textTheme.bodySmall),
+      );
+
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final event = widget.event;
+    final cs = Theme.of(context).colorScheme;
+    final e = widget.event;
+    final htmlStyle = {
+      'body': Style(
+          margin: Margins.zero,
+          padding: HtmlPaddings.zero,
+          fontSize: FontSize(13)),
+    };
 
     return Card(
       margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-      color: _statusColor(context),
+      color: widget.isToday ? cs.primaryContainer : cs.surfaceContainerLow,
       elevation: widget.isToday ? 2 : 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
         side: widget.isToday
-            ? BorderSide(color: colorScheme.primary, width: 1.5)
+            ? BorderSide(color: cs.primary, width: 1.5)
             : BorderSide.none,
       ),
       child: InkWell(
@@ -236,104 +330,90 @@ class _EventCardState extends State<_EventCard> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Time + duration row
               Row(
                 children: [
-                  Icon(Icons.access_time,
-                      size: 16, color: colorScheme.primary),
+                  Icon(widget.isXe ? Icons.directions_car : Icons.access_time,
+                      size: 16, color: cs.primary),
                   const SizedBox(width: 4),
-                  Text(
-                    event.gio,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: colorScheme.primary,
-                    ),
-                  ),
+                  Text(e.gio,
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold, color: cs.primary)),
                   const SizedBox(width: 8),
-                  Text('(${event.thoiGian})',
-                      style: Theme.of(context).textTheme.bodySmall),
+                  Flexible(
+                    child: Text('(${e.thoiGian})',
+                        style: Theme.of(context).textTheme.bodySmall,
+                        overflow: TextOverflow.ellipsis),
+                  ),
                   const Spacer(),
-                  if (event.thayDoi.isNotEmpty)
+                  if (e.isTruyenHinh)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 4),
+                      child: Icon(Icons.videocam_outlined,
+                          size: 16, color: cs.outline),
+                    ),
+                  if (e.taiLieuHop)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 4),
+                      child: Icon(Icons.attach_file, size: 16, color: cs.outline),
+                    ),
+                  if (e.tt.isNotEmpty && e.tt != 'BT')
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: colorScheme.tertiaryContainer,
+                        color: cs.tertiaryContainer,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Text(
-                        _ttLabel(event.tt),
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: colorScheme.onTertiaryContainer,
-                        ),
-                      ),
+                      child: Text(_ttLabel(e.tt),
+                          style: TextStyle(
+                              fontSize: 10, color: cs.onTertiaryContainer)),
                     ),
                   const SizedBox(width: 4),
-                  Icon(
-                    _expanded ? Icons.expand_less : Icons.expand_more,
-                    size: 20,
-                    color: colorScheme.outline,
-                  ),
+                  Icon(_expanded ? Icons.expand_less : Icons.expand_more,
+                      size: 20, color: cs.outline),
                 ],
               ),
               const SizedBox(height: 6),
-              // Subject
               Text(
-                event.noiDung,
+                e.noiDung,
                 style: const TextStyle(fontWeight: FontWeight.w600),
                 maxLines: _expanded ? null : 2,
-                overflow:
-                    _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
+                overflow: _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 4),
-              // Location
-              Row(
-                children: [
-                  Icon(Icons.location_on_outlined,
-                      size: 14, color: colorScheme.outline),
-                  const SizedBox(width: 2),
-                  Expanded(
-                    child: Text(
-                      event.diaDiem,
-                      style: Theme.of(context).textTheme.bodySmall,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-              // Host
-              Row(
-                children: [
-                  Icon(Icons.person_outline,
-                      size: 14, color: colorScheme.outline),
-                  const SizedBox(width: 2),
-                  Expanded(
-                    child: Text(
-                      'Chủ trì: ${event.chuTri}',
-                      style: Theme.of(context).textTheme.bodySmall,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-              // Expanded: participant detail (HTML)
-              if (_expanded && event.thamGiaChitiet.isNotEmpty) ...[
-                const Divider(height: 16),
-                Text('Thành phần tham gia:',
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.copyWith(fontWeight: FontWeight.bold)),
-                Html(
-                  data: event.thamGiaChitiet,
-                  style: {
-                    'body': Style(
-                        margin: Margins.zero,
-                        padding: HtmlPaddings.zero,
-                        fontSize: FontSize(13)),
-                  },
+              const SizedBox(height: 2),
+              if (e.diaDiem.isNotEmpty)
+                _infoRow(Icons.location_on_outlined, e.diaDiem),
+              if (e.chuTri.isNotEmpty)
+                _infoRow(Icons.person_outline, 'Chủ trì: ${e.chuTri}'),
+              // Lịch xe: luôn hiện thông tin xe
+              if (widget.isXe && e.chiTietXe.isNotEmpty) ...[
+                const Divider(height: 14),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.local_shipping_outlined,
+                        size: 14, color: cs.primary),
+                    const SizedBox(width: 4),
+                    Expanded(child: Html(data: e.chiTietXe, style: htmlStyle)),
+                  ],
                 ),
+              ],
+              if (_expanded) ...[
+                const Divider(height: 16),
+                if (e.thayDoi.isNotEmpty) _section('Thay đổi', e.thayDoi),
+                if (e.dvChuanBi.isNotEmpty)
+                  _section('Đơn vị chuẩn bị', e.dvChuanBi),
+                if (e.thanhPhanThamGia.isNotEmpty)
+                  _section('Thành phần tham gia', e.thanhPhanThamGia),
+                if (e.thamGiaChitiet.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text('Chi tiết tham gia:',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(fontWeight: FontWeight.bold)),
+                  Html(data: e.thamGiaChitiet, style: htmlStyle),
+                ],
               ],
             ],
           ),

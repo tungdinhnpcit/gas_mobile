@@ -6,6 +6,7 @@ import 'package:dio/io.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../constants/app_constants.dart';
 import '../constants/storage_keys.dart';
+import '../services/session_replaced_handler.dart';
 import 'hmac_interceptor.dart';
 import 'mtls_client.dart';
 
@@ -115,6 +116,14 @@ class ApiClient {
           return;
         }
 
+        // Tài khoản đã đăng nhập trên điện thoại khác → không refresh, đăng xuất + thông báo
+        if (SessionReplacedHandler.laBiThayThe(
+            error.response?.statusCode, error.response?.headers.map, error.response?.data)) {
+          await SessionReplacedHandler.xuLy();
+          handler.next(error);
+          return;
+        }
+
         if (error.response?.statusCode == 401) {
           // Dùng chung 1 Future refresh cho mọi request 401 đến đồng thời — tránh nhiều
           // request cùng gọi /api/auth/refresh và ghi đè lẫn nhau vào secure storage.
@@ -181,6 +190,12 @@ class ApiClient {
         await _storage.write(key: 'user_rights', value: jsonEncode(data['rights']));
       }
       return true;
+    } on DioException catch (e) {
+      // Refresh bị từ chối vì phiên mobile đã bị máy khác thay thế
+      if (SessionReplacedHandler.laBiThayThe(e.response?.statusCode, e.response?.headers.map, e.response?.data)) {
+        await SessionReplacedHandler.xuLy();
+      }
+      return false;
     } catch (_) {
       return false;
     }
